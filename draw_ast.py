@@ -5,6 +5,10 @@ from brewparse import parse_program
 program_source="""
 def main() {
     var x;
+    x = 10;
+}
+def fun(){
+    var y;
 }
 """
 
