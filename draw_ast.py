@@ -4,8 +4,9 @@ from brewparse import parse_program
 
 program_source="""
 def main() {
-    var x;
-    x = 10;
+  var a;
+  a = inputi("Enter a value: ");
+  print(a);  
 }
 def fun(){
     var y;
@@ -16,6 +17,10 @@ def fun(){
 def main():
     ast=parse_program(program_source,True)
     # added save to png in plot.py, doesn't affect other stuff. 
+    #ast = parse_program(program_source, False)
+    #print(ast.elem_type)             
+    #print(type(ast))                 
+    #print(type(ast.get("functions")))
 
 
 if __name__ == '__main__':
