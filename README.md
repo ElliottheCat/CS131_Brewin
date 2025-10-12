@@ -43,3 +43,9 @@ This is an unlicensed repository; even though the source code is public, it is *
 This code was primarily written by [Carey Nachenberg](http://careynachenberg.weebly.com/) with support from his TAs.
 
 
+
+## Interpreter Implementation:
+
+The implementation of the interpreter is over the provided baseclass. I will develop this incrementally over different projects. For now the interpreter does:
+
+- parse the program using provided parser

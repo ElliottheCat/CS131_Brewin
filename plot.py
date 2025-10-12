@@ -228,7 +228,14 @@ def plot_ast(ast_root, figsize=None):
     
     plt.title("AST Visualization", fontsize=14, fontweight='bold')
     plt.tight_layout()
+    
+    # added to save plot, doesn't effect parser or other things
+    plt.savefig("ast.png", bbox_inches='tight')
+
     plt.show()
+
+    
+
 
 # Add a call to interpreterv4's Interpreter.run method
 def run_with_plotting(program_text):
