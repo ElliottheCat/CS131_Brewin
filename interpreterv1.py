@@ -12,7 +12,7 @@ class Interpreter(InterpreterBase):
         super().__init__(console_output, inp) # call InterpreterBase's constructor
         self.variable_name_to_value: Dict [str,Any] = {}
         self.user_function_def : Dict[str,Any] = {} # STORE USER DEFINED FUNCTION IN THIS!!!
-
+    
         
 
 
@@ -142,17 +142,118 @@ class Interpreter(InterpreterBase):
 
 
     def assign_statement(self, statement_node:Element):
+        """
+        Assigns the result of an expression to an existing variable.
+                A Statement node representing an assignment will have the following fields:
+                    self.elem_type whose value is '='
+                    self.dict which holds two keys:
+                        'var' → the name of the variable on the left-hand side of the assignment (e.g., 'x' for x = 1 + y;)
+                        'expression' → an Expression node whose value is computed and stored into the named variable
+                The target variable must already have been declared via a variable definition statement.
+
+        """
+
+        var_name=statement_node.get('var')
+        expr=statement_node.get('expression')
+
+        """
+        If a program tries to assign a non-defined variable to an expression, then you must generate an error of type ErrorType.NAME_ERROR by callingInterpreterBase.error()
+        """
+        if var_name not in self.variable_name_to_value:
+            super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
+
+        if expr==None:
+            super().error(ErrorType.NAME_ERROR, f"No expression to be assigned; parser error.")
+        expr_val=self.evaluate_expression(expr)
+        self.variable_name_to_value[var_name]=expr_val
+
         return
     
 
-
-
-    def do_assignment(self, statement_node: Element):
-        return
     
     def func_call_statement(self, statement_node:Element):
+        """
+        The only function call statements you must support are the print() function call and the inputi() function call (as well as the automatic call to the main function to start the program). You can assume we won’t make any recursive calls (i.e., we will never invoke the main function from main itself). Calls to any function other than print() or inputi() should result in an error of type ErrorType.NAME_ERROR by calling InterpreterBase.error().
+        """
+        func_name=statement_node.get('name')
+
+        """
+        Your print function call must accept zero or more arguments, which it will
+        evaluate to get a resulting value, then concatenate without spaces into a string,
+        and then output using the output() method in our InterpreterBase base class:
+        """
+        # by the AST tree graph and brista tests, all arguments should be in expression form; else -> NAME_ERROR
+        if func_name=='print':
+            args=statement_node.get('args')
+            if args == None:
+                # nothing but an empty line
+                super().output("")
+            else:
+                string_to_output=""
+                for arg in args:
+                    val=self.evaluate_expression(arg)
+                    string_to_output+=str(val) #no matter waht expression we returned (int or string), cast it to string
+                super().output(string_to_output)
         return
+    
+
     def evaluate_expression(self, expression_node:Element):
+        """
+        Expression Nodes
+            Binary Operation Expression
+                Represents integer arithmetic with + or -.
+                An Expression node representing a binary operation has:
+                self.elem_type: '+' or '-'
+                self.dict with:
+                    'op1' → first operand (an Expression node)
+                    'op2' → second operand (an Expression node)
+                Type rules enforced by the interpreter:
+                Both operands must evaluate to integers; if either evaluates to a string, it is a type error.
+                '-' computes integer subtraction; '+' computes integer addition.
+
+            Function Call Expression
+                Represents calling a built-in function for its resulting value.
+                A function-call Expression node has:
+                self.elem_type: 'fcall'
+                self.dict with:
+                    'name' → function name (string)
+                    'args' → list of Expression nodes (actual arguments)
+
+            Qualified Name (Variable) Expression
+                Represents a variable name referenced in an expression.
+                A qname node has:
+                self.elem_type: 'qname'
+                self.dict with:
+                    'name' → the variable’s name (e.g., 'x')
+                The variable must have been declared and assigned a value before being read.
+                Reading a declared-but-unassigned variable is an error.
+
+            Value Nodes
+                Integer Literal
+                    self.elem_type: 'int'
+                    self.dict:
+                    'val' → the integer value (e.g., 5)
+
+                String Literal
+                    self.elem_type: 'string'
+                    self.dict:
+                    'val' → the string value (e.g., "hello")
+        """
+
+        if expression_node.elem_type=='string':
+            return
+        elif expression_node.elem_type=='int':
+            return
+        elif expression_node.elem_type=='qname':
+            return
+        elif expression_node.elem_type=='fcall':
+            return
+        elif expression_node.elem_type=='+':
+            return
+        elif expression_node.elem_type=='-':
+            return
+
+
         return
     
     

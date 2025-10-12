@@ -6,7 +6,7 @@ program_source="""
 def main() {
   var a;
   a = inputi("Enter a value: ");
-  print(a);  
+  print(a,5,"string", 5+6);  
 }
 def fun(){
     var y;
