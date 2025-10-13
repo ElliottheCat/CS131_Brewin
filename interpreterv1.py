@@ -171,7 +171,7 @@ class Interpreter(InterpreterBase):
     
 
     
-    def func_call_statement(self, statement_node:Element):
+    def func_call_statement(self, statement_node:Element)-> None | str:
         """
         The only function call statements you must support are the print() function call and the inputi() function call (as well as the automatic call to the main function to start the program). You can assume we won’t make any recursive calls (i.e., we will never invoke the main function from main itself). Calls to any function other than print() or inputi() should result in an error of type ErrorType.NAME_ERROR by calling InterpreterBase.error().
         """
@@ -194,7 +194,9 @@ class Interpreter(InterpreterBase):
                     val=self.evaluate_expression(arg)
                     string_to_output+=str(val) #no matter waht expression we returned (int or string), cast it to string
                 super().output(string_to_output)
-        return
+        elif func_name=="inputi":
+                # reuturn the input as a string. 
+                return
     
 
     def evaluate_expression(self, expression_node:Element):
@@ -241,17 +243,48 @@ class Interpreter(InterpreterBase):
         """
 
         if expression_node.elem_type=='string':
-            return
+            return expression_node.get('val')
+        
         elif expression_node.elem_type=='int':
-            return
+            return expression_node.get('val')
+        
         elif expression_node.elem_type=='qname':
-            return
+            var_name=expression_node.get('name')
+            if var_name not in self.variable_name_to_value:
+                super().error(ErrorType.NAME_ERROR, f"expression variable name undefined")
+            return self.variable_name_to_value[var_name]
+        
         elif expression_node.elem_type=='fcall':
             return
+        
         elif expression_node.elem_type=='+':
-            return
+            arg1=expression_node.get('op1')
+            arg2=expression_node.get('op2')
+            if (not isinstance(arg1,Element)) or (not isinstance(arg2,Element)):
+                super().error(ErrorType.TYPE_ERROR, f"+ argument is not an element")
+            
+            op1=self.evaluate_expression(arg1)
+            op2=self.evaluate_expression(arg2)
+            if (not isinstance(op1,int)) or (not isinstance(op2,int)):
+                super().error(ErrorType.TYPE_ERROR, f"adding non integers")
+
+            sum=op1+op2
+
+            return sum
         elif expression_node.elem_type=='-':
-            return
+            arg1=expression_node.get('op1')
+            arg2=expression_node.get('op2')
+            if (not isinstance(arg1,Element)) or (not isinstance(arg2,Element)):
+                super().error(ErrorType.TYPE_ERROR, f"+ argument is not an element")
+            
+            op1=self.evaluate_expression(arg1)
+            op2=self.evaluate_expression(arg2)
+            if (not isinstance(op1,int)) or (not isinstance(op2,int)):
+                super().error(ErrorType.TYPE_ERROR, f"adding non integers")
+
+            dif=op1-op2
+
+            return dif
 
 
         return
