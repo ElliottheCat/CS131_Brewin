@@ -171,7 +171,7 @@ class Interpreter(InterpreterBase):
     
 
     
-    def func_call_statement(self, statement_node:Element)-> None | str:
+    def func_call_statement(self, statement_node:Element)-> None | int:
         """
         The only function call statements you must support are the print() function call and the inputi() function call (as well as the automatic call to the main function to start the program). You can assume we won’t make any recursive calls (i.e., we will never invoke the main function from main itself). Calls to any function other than print() or inputi() should result in an error of type ErrorType.NAME_ERROR by calling InterpreterBase.error().
         """
@@ -222,7 +222,7 @@ class Interpreter(InterpreterBase):
                         strout=self.evaluate_expression(arg)
             super().output(strout)
             # reuturn the input as a string using th e super class method
-            return super().get_input()
+            return int (super().get_input()) # Need to cast to int ourselves.
         
         #else log error for unknown functoin.
         else:
