@@ -195,8 +195,9 @@ class Interpreter(InterpreterBase):
                     string_to_output+=str(val) #no matter waht expression we returned (int or string), cast it to string
                 super().output(string_to_output)
         elif func_name=="inputi":
-                # reuturn the input as a string. 
-                return
+                super().output("Enter a value: ")
+                # reuturn the input as a string using th e super class method
+                return super().get_input()
     
 
     def evaluate_expression(self, expression_node:Element):
@@ -255,7 +256,7 @@ class Interpreter(InterpreterBase):
             return self.variable_name_to_value[var_name]
         
         elif expression_node.elem_type=='fcall':
-            return
+            return self.func_call_statement(expression_node)
         
         elif expression_node.elem_type=='+':
             arg1=expression_node.get('op1')
@@ -263,6 +264,7 @@ class Interpreter(InterpreterBase):
             if (not isinstance(arg1,Element)) or (not isinstance(arg2,Element)):
                 super().error(ErrorType.TYPE_ERROR, f"+ argument is not an element")
             
+            # This evealuation step automatically handles any nested functions or +/- such as (9+(7-8))
             op1=self.evaluate_expression(arg1)
             op2=self.evaluate_expression(arg2)
             if (not isinstance(op1,int)) or (not isinstance(op2,int)):
@@ -277,6 +279,7 @@ class Interpreter(InterpreterBase):
             if (not isinstance(arg1,Element)) or (not isinstance(arg2,Element)):
                 super().error(ErrorType.TYPE_ERROR, f"+ argument is not an element")
             
+            # This evealuation step automatically handles any nested functions or +/- such as (9+(7-8))
             op1=self.evaluate_expression(arg1)
             op2=self.evaluate_expression(arg2)
             if (not isinstance(op1,int)) or (not isinstance(op2,int)):
