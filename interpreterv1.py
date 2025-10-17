@@ -181,6 +181,21 @@ class Interpreter(InterpreterBase):
         Your print function call must accept zero or more arguments, which it will
         evaluate to get a resulting value, then concatenate without spaces into a string,
         and then output using the output() method in our InterpreterBase base class:
+
+        
+        In project #1, the only valid function call you can make in an expression is a call to the inputi() function (calling the print() function in an expression is UNDEFINED BEHAVIOR and will NOT be tested).
+        The inputi() function may take either no parameters or a single parameter:
+
+        You may assume that if the inputi() function is invoked with a single argument, the argument will always have the type of string (you don’t need to check for this).
+
+        If an inputi() function call has a prompt parameter, you must first output it to the screen using our InterpreterBase.output() method before obtaining input from the user:
+
+        If an inputi() expression has more than one parameter passed to it, then you must generate an error of type ErrorType.NAME_ERROR by calling InterpreterBase.error()
+
+        The get_input() method returns a string regardless of what the user types in, so you’ll need to convert the result to an integer yourself. You may assume that only valid integers will be entered in response to an inputi() prompt and do NOT need to test for non-integer values being entered.
+
+        You may use any error message string you like as we will not check the message in our testing.
+        
         """
         # by the AST tree graph and brista tests, all arguments should be in expression form; else -> NAME_ERROR
         if func_name=='print':
@@ -194,10 +209,24 @@ class Interpreter(InterpreterBase):
                     val=self.evaluate_expression(arg)
                     string_to_output+=str(val) #no matter waht expression we returned (int or string), cast it to string
                 super().output(string_to_output)
-        elif func_name=="inputi":
-                super().output("Enter a value: ")
-                # reuturn the input as a string using th e super class method
-                return super().get_input()
+
+        
+        elif func_name=='inputi':
+            args=statement_node.get('args')
+            strout=""
+            if args: 
+                if len(args)>1:
+                    super().error(ErrorType.NAME_ERROR,f"No inputi() function found that takes > 1 parameter")
+                else:
+                    for arg in args:
+                        strout=self.evaluate_expression(arg)
+            super().output(strout)
+            # reuturn the input as a string using th e super class method
+            return super().get_input()
+        
+        #else log error for unknown functoin.
+        else:
+            super().error(ErrorType.NAME_ERROR, f"Unknown function")
     
 
     def evaluate_expression(self, expression_node:Element):
@@ -267,7 +296,7 @@ class Interpreter(InterpreterBase):
             # This evealuation step automatically handles any nested functions or +/- such as (9+(7-8))
             op1=self.evaluate_expression(arg1)
             op2=self.evaluate_expression(arg2)
-            if (not isinstance(op1,int)) or (not isinstance(op2,int)):
+            if (not isinstance(op1,int)) or (not isinstance(op2,int)): #f an expression attempts to operate on a string (e.g., 5 + "foo"), then your interpreter must generate an error
                 super().error(ErrorType.TYPE_ERROR, f"adding non integers")
 
             sum=op1+op2
