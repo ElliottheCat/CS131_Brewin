@@ -112,7 +112,7 @@ class Interpreter(InterpreterBase):
             self.func_call_statement(statement_node)
 
 
-        ### TODO: check user function definition validity and call it
+        ### TODO: for future project, check user function definition validity and call it
         return
 
 
@@ -213,16 +213,19 @@ class Interpreter(InterpreterBase):
         
         elif func_name=='inputi':
             args=statement_node.get('args')
-            strout=""
+            
             if args: 
                 if len(args)>1:
                     super().error(ErrorType.NAME_ERROR,f"No inputi() function found that takes > 1 parameter")
-                else:
+                elif len(args)==1:
+                    strout=""
                     for arg in args:
                         strout=self.evaluate_expression(arg)
-            super().output(strout)
+                    super().output(strout)
             # reuturn the input as a string using th e super class method
-            return int (super().get_input()) # Need to cast to int ourselves.
+            s= super().get_input()
+            if s:
+                return int (s) # Need to cast to int ourselves.
         
         #else log error for unknown functoin.
         else:
