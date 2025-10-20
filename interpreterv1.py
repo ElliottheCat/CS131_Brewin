@@ -1,17 +1,25 @@
 from brewparse import parse_program
 from intbase import InterpreterBase, ErrorType
-from typing import Optional, Tuple, Dict, List,Any
+from typing import Optional, Dict, Any 
 from element import Element
 # need data structures:
 # Need a variable hash map
 # TA: Also need a structure to hold all functions you see (is this necessary?)
     # for project 2..
 
+
+"""
+Notes:
+I quoted the original specs in the triple quoted strings, and my own comments as well as future development notes after # comments. 
+The spec explained almost everything so for the parts explained by the quoted specs, I didn't have much commenst myself. 
+
+"""
+
 class Interpreter(InterpreterBase):
     def __init__(self, console_output: bool =True, inp:str|None = None, trace_output: bool=False):
         super().__init__(console_output, inp) # call InterpreterBase's constructor
         self.variable_name_to_value: Dict [str,Any] = {}
-        self.user_function_def : Dict[str,Any] = {} # STORE USER DEFINED FUNCTION IN THIS!!!
+        self.user_function_def : Dict[str,Any] = {} # STORE USER DEFINED FUNCTION IN THIS!!! (future projecst.)
     
         
 
@@ -30,8 +38,8 @@ class Interpreter(InterpreterBase):
 
         To interpret a function, you must interpret all of its statements from top to bottom
         """
-        ### Only the statements inside main are executed in Project #1.
-        ### TODO: Update to hold the user defined functions inside self.function_def ###
+        #Only the statements inside main are executed in Project #1. no need to check for other funcitons 
+        ### TODO: Update to hold the user defined functions inside self.function_def 
 
         """
         If a program does not have a main function defined, then you must generate an error of type ErrorType.NAME_ERROR by calling InterpreterBase.error()
@@ -285,10 +293,10 @@ class Interpreter(InterpreterBase):
             var_name=expression_node.get('name')
             if var_name not in self.variable_name_to_value:
                 super().error(ErrorType.NAME_ERROR, f"expression variable name undefined")
-            return self.variable_name_to_value[var_name]
+            return self.variable_name_to_value[var_name] #fetch variable from our dictionary
         
         elif expression_node.elem_type=='fcall':
-            return self.func_call_statement(expression_node)
+            return self.func_call_statement(expression_node) #call function.
         
         elif expression_node.elem_type=='+':
             arg1=expression_node.get('op1')
@@ -296,7 +304,7 @@ class Interpreter(InterpreterBase):
             if (not isinstance(arg1,Element)) or (not isinstance(arg2,Element)):
                 super().error(ErrorType.TYPE_ERROR, f"+ argument is not an element")
             
-            # This evealuation step automatically handles any nested functions or +/- such as (9+(7-8))
+            # This evealuation step automatically handles any nested functions or +/- such as (9+(7-8)) reflected in AST after parsing
             op1=self.evaluate_expression(arg1)
             op2=self.evaluate_expression(arg2)
             if (not isinstance(op1,int)) or (not isinstance(op2,int)): #f an expression attempts to operate on a string (e.g., 5 + "foo"), then your interpreter must generate an error
