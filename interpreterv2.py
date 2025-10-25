@@ -241,7 +241,7 @@ class Interpreter(InterpreterBase):
                     super().output(strout)
             # reuturn the input as a string using th e super class method
             s= super().get_input()
-            
+
             if s:
                 return int (s) # Need to cast to int ourselves.
         
@@ -251,52 +251,33 @@ class Interpreter(InterpreterBase):
     
 
     def evaluate_expression(self, expression_node:Element):
-
-        if expression_node.elem_type=='string':
+        kind = expression_node.elem_type
+        if kind==self.INT_NODE or kind == self.STRING_NODE:
             return expression_node.get('val')
         
-        elif expression_node.elem_type=='int':
-            return expression_node.get('val')
-        
-        elif expression_node.elem_type=='qname':
+        elif kind==self.QUALIFIED_NAME_NODE:
             var_name=expression_node.get('name')
-            if var_name not in self.variable_name_to_value:
-                super().error(ErrorType.NAME_ERROR, f"expression variable name undefined")
-            return self.variable_name_to_value[var_name] #fetch variable from our dictionary
+            value = self.env.get(var_name)
+            if value is None:
+                super().error(ErrorType.NAME_ERROR, "variable not defined")
+            return value #fetch variable from our dictionary
         
-        elif expression_node.elem_type=='fcall':
+        elif kind == self.FCALL_NODE:
             return self.func_call_statement(expression_node) #call function.
         
-        elif expression_node.elem_type=='+':
-            arg1=expression_node.get('op1')
-            arg2=expression_node.get('op2')
-            if (not isinstance(arg1,Element)) or (not isinstance(arg2,Element)):
-                super().error(ErrorType.TYPE_ERROR, f"+ argument is not an element")
-            
+        elif kind in self.ops:
             # This evealuation step automatically handles any nested functions or +/- such as (9+(7-8)) reflected in AST after parsing
-            op1=self.evaluate_expression(arg1)
-            op2=self.evaluate_expression(arg2)
+            
+            op1=self.evaluate_expression(expression_node.get('op1')) #type: ignore
+            op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
             if (not isinstance(op1,int)) or (not isinstance(op2,int)): #f an expression attempts to operate on a string (e.g., 5 + "foo"), then your interpreter must generate an error
                 super().error(ErrorType.TYPE_ERROR, f"adding non integers")
-
-            sum=op1+op2
-
-            return sum
-        elif expression_node.elem_type=='-':
-            arg1=expression_node.get('op1')
-            arg2=expression_node.get('op2')
-            if (not isinstance(arg1,Element)) or (not isinstance(arg2,Element)):
-                super().error(ErrorType.TYPE_ERROR, f"+ argument is not an element")
             
-            # This evealuation step automatically handles any nested functions or +/- such as (9+(7-8))
-            op1=self.evaluate_expression(arg1)
-            op2=self.evaluate_expression(arg2)
-            if (not isinstance(op1,int)) or (not isinstance(op2,int)):
-                super().error(ErrorType.TYPE_ERROR, f"adding non integers")
+            if kind == "-":
+                return op1 - op2
 
-            dif=op1-op2
-
-            return dif
+            elif kind == "+":
+                return op1 + op2
 
 
         return
