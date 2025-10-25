@@ -19,7 +19,7 @@ class Interpreter(InterpreterBase):
     def __init__(self, console_output: bool =True, inp:str|None = None, trace_output: bool=False):
         super().__init__(console_output, inp) # call InterpreterBase's constructor
         self.variable_name_to_value: Dict [str,Any] = {}
-        self.user_function_def : Dict[str,Any] = {} # STORE USER DEFINED FUNCTION IN THIS!!! (future projecst.)
+        self.user_function_def : Dict[str,Element] = {} # name: element.
     
         
 
