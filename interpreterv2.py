@@ -131,12 +131,15 @@ class Interpreter(InterpreterBase):
 
 
 
+
+
+
 class Interpreter(InterpreterBase):
     def __init__(self, console_output: bool =True, inp:str|None = None, trace_output: bool=False):
         super().__init__(console_output, inp) # call InterpreterBase's constructor
-        self.variable_name_to_value: Dict [str,Any] = {}
+        self.env = Environment()
         self.user_function_def : Dict[str,Element] = {} # name: element.
-    
+        self.ops = {"-", "+"}
         
 
 
@@ -146,15 +149,13 @@ class Interpreter(InterpreterBase):
         #Only the statements inside main are executed in Project #1. no need to check for other funcitons 
         ### TODO: Update to hold the user defined functions inside self.function_def 
 
-        funcs = ast.get('functions')
-        main_func: Element|None=None
-        if funcs == None:
-            super().error(ErrorType.NAME_ERROR,"No function was found in program")
-        else:
-            for func in funcs:
-                if func.get('name')=='main':
-                    main_func=func
+        for func in ast.get('functions'):
+            self.user_function_def[func.get('name')]=func # this also pushes main into the list
 
+        if "main" not in self.user_function_def:
+            super().error(ErrorType.NAME_ERROR, "main function not found")
+
+        main_func= self.user_function_def["main"]
 
         if main_func == None:
                 super().error(ErrorType.NAME_ERROR,"No main() function was found")
@@ -178,31 +179,26 @@ class Interpreter(InterpreterBase):
 
 
     def run_statement(self, statement_node: Element):
-        
-        if statement_node.elem_type=='vardef':
+        kind = statement_node.elem_type
+        if kind==self.VAR_DEF_NODE:
             self.var_def_statement(statement_node)
-        elif statement_node.elem_type=='=':
+        elif kind=='=':
             self.assign_statement(statement_node)
-        elif statement_node.elem_type=='fcall':
+        elif kind==self.FCALL_NODE:
             self.func_call_statement(statement_node)
 
 
         ### TODO: for future project, check user function definition validity and call it
+
         return
 
 
     def var_def_statement(self, statement_node:Element):
 
         var_name=statement_node.get("name")
-        if var_name in self.variable_name_to_value:
-            super().error(ErrorType.NAME_ERROR, f"Variable {var_name} defined more than once")
         
-        if not isinstance(var_name,str):
-            super().error(ErrorType.TYPE_ERROR, f"Variable name {var_name} not string from parser")
-            return
-        #Define variable name in variable dictionary
-        self.variable_name_to_value[var_name]=None
-        return
+        if not self.env.fdef(var_name):
+            super().error(ErrorType.NAME_ERROR, "variable already defined")
     
 
 
@@ -212,39 +208,29 @@ class Interpreter(InterpreterBase):
         var_name=statement_node.get('var')
         expr=statement_node.get('expression')
 
-        if var_name not in self.variable_name_to_value:
-            super().error(ErrorType.NAME_ERROR, f"Variable {var_name} has not been defined")
+        value = self.evaluate_expression(statement_node.get("expression")) # type: ignore
 
-        if expr==None:
-            super().error(ErrorType.NAME_ERROR, f"No expression to be assigned; parser error.")
-        expr_val=self.evaluate_expression(expr)
-        self.variable_name_to_value[var_name]=expr_val
+        if not self.env.set(var_name, value):
+            super().error(ErrorType.NAME_ERROR, "variable not defined")
 
         return
     
 
     
-    def func_call_statement(self, statement_node:Element)-> None | int:
+    def func_call_statement(self, statement_node:Element) -> None|Any: # function can return anything, or nothing
 
         func_name=statement_node.get('name')
+        args=statement_node.get("args")
 
         # by the AST tree graph and brista tests, all arguments should be in expression form; else -> NAME_ERROR
         if func_name=='print':
-            args=statement_node.get('args')
-            if args == None:
-                # nothing but an empty line
-                super().output("")
-            else:
-                string_to_output=""
-                for arg in args:
-                    val=self.evaluate_expression(arg)
-                    string_to_output+=str(val) #no matter waht expression we returned (int or string), cast it to string
-                super().output(string_to_output)
+            out = ""
+            for arg in args: # type: ignore 
+                out += str(self.evaluate_expression(arg)) #no matter waht expression we returned (int or string), cast it to string
+                super().output(out)
 
         
         elif func_name=='inputi':
-            args=statement_node.get('args')
-            
             if args: 
                 if len(args)>1:
                     super().error(ErrorType.NAME_ERROR,f"No inputi() function found that takes > 1 parameter")
@@ -255,12 +241,13 @@ class Interpreter(InterpreterBase):
                     super().output(strout)
             # reuturn the input as a string using th e super class method
             s= super().get_input()
+            
             if s:
                 return int (s) # Need to cast to int ourselves.
         
         #else log error for unknown functoin.
-        else:
-            super().error(ErrorType.NAME_ERROR, f"Unknown function")
+        
+        super().error(ErrorType.NAME_ERROR, f"Unknown function")
     
 
     def evaluate_expression(self, expression_node:Element):
