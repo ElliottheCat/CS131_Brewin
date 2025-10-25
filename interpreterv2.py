@@ -91,7 +91,7 @@ class Interpreter(InterpreterBase):
 
         ### TODO: for future project, check user function definition validity and call it
 
-        return
+
 
 
     def var_def_statement(self, statement_node:Element):
@@ -109,7 +109,7 @@ class Interpreter(InterpreterBase):
         var_name=statement_node.get('var')
         expr=statement_node.get('expression')
 
-        value = self.evaluate_expression(statement_node.get("expression")) # type: ignore
+        value = self.evaluate_expression(expr) # type: ignore
 
         if not self.env.set(var_name, value):
             super().error(ErrorType.NAME_ERROR, "variable not defined")
@@ -126,9 +126,13 @@ class Interpreter(InterpreterBase):
         # by the AST tree graph and brista tests, all arguments should be in expression form; else -> NAME_ERROR
         if func_name=='print':
             out = ""
-            for arg in args: # type: ignore 
-                out += str(self.evaluate_expression(arg)) #no matter waht expression we returned (int or string), cast it to string
-                super().output(out)
+
+            for arg in args: #type: ignore
+                out += str(self.evaluate_expression(arg))
+
+            super().output(out)
+
+            return 0  # undefined behavior
 
         
         elif func_name=='inputi':
@@ -179,14 +183,11 @@ class Interpreter(InterpreterBase):
 
             elif kind == "+":
                 return op1 + op2
-
-
+            
         return
     
     
     
-
-
 
 
 
