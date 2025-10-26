@@ -167,7 +167,7 @@ class Interpreter(InterpreterBase):
                         case False:
                             out += "false"
                 else:
-                    out += str(self.evaluate_expression(arg))
+                    out += str(val)
 
             super().output(out)
 
