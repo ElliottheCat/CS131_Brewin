@@ -189,20 +189,20 @@ class Interpreter(InterpreterBase):
             if s:
                 return int (s) # Need to cast to int ourselves.
             
-            elif func_name=='inputs':
-                if args: 
-                    if len(args)>1:
-                        super().error(ErrorType.NAME_ERROR,f"No inputi() function found that takes > 1 parameter")
-                    elif len(args)==1:
-                        strout=""
-                        for arg in args:
-                            strout=self.evaluate_expression(arg)
-                        super().output(strout)
-                # reuturn the input as a string using th e super class method
-                s= super().get_input()
+        elif func_name=='inputs':
+            if args: 
+                if len(args)>1:
+                    super().error(ErrorType.NAME_ERROR,f"No inputi() function found that takes > 1 parameter")
+                elif len(args)==1:
+                    strout=""
+                    for arg in args:
+                        strout=self.evaluate_expression(arg)
+                    super().output(strout)
+            # reuturn the input as a string using th e super class method
+            s= super().get_input()
 
-                if s:
-                    return str (s) # I guess input is always a string so this coersion is unnecessary, but I want to make sure it fits the type.
+            if s:
+                return str (s) # I guess input is always a string so this coersion is unnecessary, but I want to make sure it fits the type.
         elif (func_name, len(args)) in self.user_function_def: #type:ignore
             # TODO: for user defined funciton, push new scope including passed in variables by value on to scope stack.
             # entering user defined function, we need a new environment.
@@ -211,12 +211,18 @@ class Interpreter(InterpreterBase):
             called_func=self.user_function_def[(func_name, arg_len)]#type: ignore
 
             #enter new funciton scope
+            last_scope=self.scope
+            last_env=self.env
             self.scope=(func_name, arg_len)
             self.env=new_env
 
+            name_list=arg_name=called_func.get('args')
+
             for i in range(arg_len):
-                arg_name=called_func.get('args')[i] #type:ignore
+                arg_name=name_list[i] #type:ignore
                 arg_val=self.evaluate_expression(args[i]) #type:ignore
+                if not self.env.fdef(arg_name):
+                    super().error(ErrorType.NAME_ERROR, "variable already defined")
                 if not self.env.set(arg_name, arg_val):
                     super().error(ErrorType.NAME_ERROR, "variable not defined")
 
@@ -224,8 +230,10 @@ class Interpreter(InterpreterBase):
 
             self.run_func(called_func)
             
-
-
+            self.scope_stack.pop()
+            self.scope=last_scope
+            self.env=last_env
+            return 
 
         #else log error for unknown functoin.
 
@@ -270,7 +278,7 @@ class Interpreter(InterpreterBase):
             
             op1=self.evaluate_expression(expression_node.get('op1')) #type: ignore
             op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
-            if ((not isinstance(op1,int)) or (not isinstance(op2,int) )): #f an expression attempts to operate on a string (e.g., 5 + "foo"), then your interpreter must generate an error
+            if ((not type(op1) is int) or (not type(op2) is int )): #f an expression attempts to operate on a string (e.g., 5 + "foo"), then your interpreter must generate an error
                 super().error(ErrorType.TYPE_ERROR, f"integer arithmitic on non integers")
             
             if kind == "-":
@@ -296,7 +304,7 @@ class Interpreter(InterpreterBase):
             op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
             if ((not type(op1) is int) or (not type(op2) is int )): # bool is subtype of int
                 super().error(ErrorType.TYPE_ERROR, f"integer comparison on non integers")
-             
+            
             match kind:
                 case "<":
                     return op1 < op2
@@ -310,7 +318,7 @@ class Interpreter(InterpreterBase):
         elif kind in self.boolean_ops_bi:
             op1=self.evaluate_expression(expression_node.get('op1')) #type: ignore
             op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
-            if ((not isinstance(op1,bool)) or (not isinstance(op2,bool) )): 
+            if ((not type(op1) is bool) or (not type(op2) is bool )): 
                 super().error(ErrorType.TYPE_ERROR, f"bool binary on non booleans")
 
             match kind:
