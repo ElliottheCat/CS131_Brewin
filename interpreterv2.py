@@ -40,8 +40,9 @@ class Interpreter(InterpreterBase):
         super().__init__(console_output, inp) # call InterpreterBase's constructor
         self.env = Environment()
         self.user_function_def : Dict[str,Element] = {} # name: element.
-        self.integer_ops = {"-", "+","/","*","==","!=","<","<=",">",">="}
+        self.integer_ops = {"-", "+","/","*","==","!=","<","<=",">",">="} # NOTE: use // for integer division and truncation in python. 
         self.boolean_ops = {"||","&&","!","==","!="}
+        self.string_ops= {"+","==","!="}
         
 
 
@@ -151,6 +152,21 @@ class Interpreter(InterpreterBase):
 
             if s:
                 return int (s) # Need to cast to int ourselves.
+            
+            elif func_name=='inputs':
+                if args: 
+                    if len(args)>1:
+                        super().error(ErrorType.NAME_ERROR,f"No inputi() function found that takes > 1 parameter")
+                    elif len(args)==1:
+                        strout=""
+                        for arg in args:
+                            strout=self.evaluate_expression(arg)
+                        super().output(strout)
+                # reuturn the input as a string using th e super class method
+                s= super().get_input()
+
+                if s:
+                    return str (s) # I guess input is always a string so this coersion is unnecessary, but I want to make sure it fits the type.
         
         #else log error for unknown functoin.
         
