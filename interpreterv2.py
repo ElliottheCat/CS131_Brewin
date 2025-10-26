@@ -40,7 +40,8 @@ class Interpreter(InterpreterBase):
         super().__init__(console_output, inp) # call InterpreterBase's constructor
         self.env = Environment()
         self.user_function_def : Dict[str,Element] = {} # name: element.
-        self.ops = {"-", "+"}
+        self.integer_ops = {"-", "+","/","*","==","!=","<","<=",">",">="}
+        self.boolean_ops = {"||","&&","!","==","!="}
         
 
 
@@ -125,6 +126,7 @@ class Interpreter(InterpreterBase):
 
         # by the AST tree graph and brista tests, all arguments should be in expression form; else -> NAME_ERROR
         if func_name=='print':
+            # TODO: support int, string, boolean (true or false)
             out = ""
 
             for arg in args: #type: ignore
@@ -170,7 +172,7 @@ class Interpreter(InterpreterBase):
         elif kind == self.FCALL_NODE:
             return self.func_call_statement(expression_node) #call function.
         
-        elif kind in self.ops:
+        elif kind in self.integer_ops:
             # This evealuation step automatically handles any nested functions or +/- such as (9+(7-8)) reflected in AST after parsing
             
             op1=self.evaluate_expression(expression_node.get('op1')) #type: ignore
@@ -184,6 +186,22 @@ class Interpreter(InterpreterBase):
             elif kind == "+":
                 return op1 + op2
             
+        return
+    
+
+    def if_statement_execution(self, expression_node:Element):
+        # TODO: if condition not Boolean, return Type error
+        return
+    
+
+    def while_statement_execution(self, expression_node:Element):
+        # TODO: if condition not Boolean, return Type error
+        return
+    
+
+    def return_statement_execution(self, expression_node:Element):
+        # if something to return, return it
+        # terminate current function immediately (if in main, terminate program)
         return
     
     
