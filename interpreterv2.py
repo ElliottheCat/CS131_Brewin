@@ -219,7 +219,7 @@ class Interpreter(InterpreterBase):
             name_list=arg_name=called_func.get('args')
 
             for i in range(arg_len):
-                arg_name=name_list[i] #type:ignore
+                arg_name=name_list[i].get('name') #type:ignore # name_list[i] is a argument node!!!!! remember to use get name!
                 arg_val=self.evaluate_expression(args[i]) #type:ignore
                 if not self.env.fdef(arg_name):
                     super().error(ErrorType.NAME_ERROR, "variable already defined")
