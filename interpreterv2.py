@@ -6,6 +6,7 @@ from element import Element
 
 generate_image = False
 
+# NOTE: I am just using value None as nil in the project unless otherwise specified.
 
 class Environment:
     def __init__(self):
@@ -40,9 +41,17 @@ class Interpreter(InterpreterBase):
         super().__init__(console_output, inp) # call InterpreterBase's constructor
         self.env = Environment()
         self.user_function_def : Dict[str,Element] = {} # name: element.
-        self.integer_ops = {"-", "+","/","*","==","!=","<","<=",">",">="} # NOTE: use // for integer division and truncation in python. 
-        self.boolean_ops = {"||","&&","!","==","!="}
-        self.string_ops= {"+","==","!="}
+        self.integer_ops_bi = {"-", "/","*"} # NOTE: use // for integer division and truncation in python. 
+        self.integer_ops_un = {"-"}
+        self.integer_ops_com = {"<","<=",">",">="}
+
+        self.boolean_ops_bi = {"||","&&"}
+        self.boolean_ops_un ={"!"}
+
+
+        self.string_or_int_ops_bi= {"+"}
+
+        self.ops_com = {"==","!="}
         
 
 
@@ -175,8 +184,12 @@ class Interpreter(InterpreterBase):
 
     def evaluate_expression(self, expression_node:Element):
         kind = expression_node.elem_type
-        if kind==self.INT_NODE or kind == self.STRING_NODE:
+        if kind==self.INT_NODE or kind == self.STRING_NODE or kind == self.BOOL_NODE:
             return expression_node.get('val')
+        # for boolean node, self.dict has 'val' mapping to True or False (booleans print as true/false), parser already mapped the raw text to True or False!
+        
+        elif kind == self.NIL_NODE:
+            return None
         
         elif kind==self.QUALIFIED_NAME_NODE:
             var_name=expression_node.get('name')
@@ -188,19 +201,29 @@ class Interpreter(InterpreterBase):
         elif kind == self.FCALL_NODE:
             return self.func_call_statement(expression_node) #call function.
         
-        elif kind in self.integer_ops:
+        elif kind in self.integer_ops_bi:
             # This evealuation step automatically handles any nested functions or +/- such as (9+(7-8)) reflected in AST after parsing
             
             op1=self.evaluate_expression(expression_node.get('op1')) #type: ignore
             op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
-            if (not isinstance(op1,int)) or (not isinstance(op2,int)): #f an expression attempts to operate on a string (e.g., 5 + "foo"), then your interpreter must generate an error
+            if ((not isinstance(op1,int)) or (not isinstance(op2,int) )): #f an expression attempts to operate on a string (e.g., 5 + "foo"), then your interpreter must generate an error
                 super().error(ErrorType.TYPE_ERROR, f"adding non integers")
             
             if kind == "-":
                 return op1 - op2
 
-            elif kind == "+":
-                return op1 + op2
+            elif kind == "/":
+                return op1 // op2
+            elif kind == "*":
+                return op1 * op2
+            
+        elif kind == self.NEG_NODE:
+            op=self.evaluate_expression(expression_node.get('op1')) #type: ignore
+            if not isinstance(op,int):
+                super().error(ErrorType.TYPE_ERROR, "int unary negation of non-integer")
+
+            return - op
+
             
         return
     
