@@ -315,9 +315,14 @@ class Interpreter(InterpreterBase):
         
         to_exex=expression_node.get('statements')
         while cond:
+            
             if to_exex:
                 for stm in to_exex:
                         self.run_statement(stm)
+            
+            cond=self.evaluate_expression(expression_node.get('condition')) #type:ignore
+            if not isinstance(cond,bool):
+                super().error(ErrorType.TYPE_ERROR, f"if condition not boolean")
 
 
         return
@@ -338,7 +343,7 @@ class Interpreter(InterpreterBase):
             return
         else:
             self.scope=last_scope
-            return self.evaluate_expression(rtr)
+            return self.evaluate_expression(rtr) #type: ignore
     
     
     
