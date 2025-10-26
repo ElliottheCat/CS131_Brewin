@@ -218,7 +218,14 @@ class Interpreter(InterpreterBase):
                 super().error(ErrorType.TYPE_ERROR, f"int unary negation of non-integer")
             return - op
         
-        elif kind == self.
+        elif kind == self.NOT_NODE:#logical not
+            op=self.evaluate_expression(expression_node.get('op1')) #type: ignore
+            if not isinstance(op,bool):
+                super().error(ErrorType.TYPE_ERROR, f"bool unary negation of non-boolean")
+
+            return not op
+        
+        
         elif kind in self.integer_ops_bi:
             # This evealuation step automatically handles any nested functions or +/- such as (9+(7-8)) reflected in AST after parsing
             
