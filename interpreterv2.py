@@ -256,6 +256,20 @@ class Interpreter(InterpreterBase):
 
     def if_statement_execution(self, expression_node:Element):
         # TODO: if condition not Boolean, return Type error
+        cond=expression_node.get('condition')
+        if not isinstance(cond,bool):
+            super().error(ErrorType.TYPE_ERROR, f"if condition not boolean")
+
+        if cond:
+            to_exex=expression_node.get('statements')
+        else:
+            to_exex=expression_node.get('else_statements')
+
+        if to_exex:
+                for stm in to_exex:
+                    self.run_statement(stm)
+
+
         return
     
 
