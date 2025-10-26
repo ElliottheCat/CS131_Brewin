@@ -296,7 +296,7 @@ class Interpreter(InterpreterBase):
             op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
             if ((not type(op1) is int) or (not type(op2) is int )): # bool is subtype of int
                 super().error(ErrorType.TYPE_ERROR, f"integer comparison on non integers")
-            
+             
             match kind:
                 case "<":
                     return op1 < op2
