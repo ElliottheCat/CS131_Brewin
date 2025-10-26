@@ -282,13 +282,28 @@ class Interpreter(InterpreterBase):
 
     def while_statement_execution(self, expression_node:Element):
         # TODO: if condition not Boolean, return Type error
+        cond=expression_node.get('condition')
+        if not isinstance(cond,bool):
+            super().error(ErrorType.TYPE_ERROR, f"if condition not boolean")
+        
+        to_exex=expression_node.get('statements')
+        while cond:
+            if to_exex:
+                for stm in to_exex:
+                        self.run_statement(stm)
+
+
         return
     
 
     def return_statement_execution(self, expression_node:Element):
         # if something to return, return it
         # terminate current function immediately (if in main, terminate program)
-        return
+        rtr=expression_node.get('expression')
+        if rtr==None:
+            return
+        else:
+            return self.evaluate_expression(rtr)
     
     
     
