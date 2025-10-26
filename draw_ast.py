@@ -4,17 +4,12 @@ from interpreterv1 import Interpreter
 
 program_source="""
 def main() {
-  var a;
-  a = inputi();
-  var foo;
-  foo = inputi("enter foo #: ") +4;
-
-  print("a:",a," string is good ", 5+6); 
-
-  print("foo: ",foo) ;
-}
-def fun(){
-    var y;
+ var i;
+ i = 3;
+ while (i > 0) {
+  print(i);
+  i = i - 1;
+ }
 }
 """
 

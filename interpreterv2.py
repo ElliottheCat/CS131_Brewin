@@ -39,8 +39,9 @@ class Environment:
 class Interpreter(InterpreterBase):
     def __init__(self, console_output: bool =True, inp:str|None = None, trace_output: bool=False):
         super().__init__(console_output, inp) # call InterpreterBase's constructor
-        self.env = Environment()
-
+        self.env = Environment() # initialize to main
+        self.scope = ("main",0)
+        self.scope_stack=[("main",0,self.env)] #including environment!
         self.user_function_def : Dict[Tuple[str,int],Element] = {} # (name, arg#): element.
 
         self.integer_ops_bi = {"-", "/","*"} # NOTE: use // for integer division and truncation in python. 
@@ -88,9 +89,16 @@ class Interpreter(InterpreterBase):
 
 
     def run_func(self, func_node:Element):
+        name=func_node.get('name')
+        args=len(func_node.get('args')) #type: ignore
+        scope=(name,args)
+
         stms=func_node.get('statements')
+
         if stms != None:
             for statement_node in stms:
+                if not self.scope==scope: #return logic
+                    break
                 self.run_statement(statement_node)
 
 
@@ -188,8 +196,12 @@ class Interpreter(InterpreterBase):
                 if s:
                     return str (s) # I guess input is always a string so this coersion is unnecessary, but I want to make sure it fits the type.
         
+        # TODO: for user defined funciton, push new scope including passed in variables by value on to scope stack.
+
+
+
         #else log error for unknown functoin.
-        
+
         super().error(ErrorType.NAME_ERROR, f"Unknown function")
     
 
@@ -252,6 +264,21 @@ class Interpreter(InterpreterBase):
             #python + works the same for strign and int for our purposes
             return op1+op2 #type: ignore
         
+        elif kind in self.integer_ops_com:
+            op1=self.evaluate_expression(expression_node.get('op1')) #type: ignore
+            op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
+            if ((not isinstance(op1,int)) or (not isinstance(op2,int) )): 
+                super().error(ErrorType.TYPE_ERROR, f"integer comparison on non integers")
+            
+            match kind:
+                case "<":
+                    return op1 < op2
+                case ">":
+                    return op1 > op2
+                case "<=":
+                    return op1 <= op2
+                case ">=":
+                    return op1 >= op2
             
 
 
@@ -263,7 +290,7 @@ class Interpreter(InterpreterBase):
 
     def if_statement_execution(self, expression_node:Element):
         # TODO: if condition not Boolean, return Type error
-        cond=expression_node.get('condition')
+        cond=self.evaluate_expression(expression_node.get('condition')) #type:ignore
         if not isinstance(cond,bool):
             super().error(ErrorType.TYPE_ERROR, f"if condition not boolean")
 
@@ -282,7 +309,7 @@ class Interpreter(InterpreterBase):
 
     def while_statement_execution(self, expression_node:Element):
         # TODO: if condition not Boolean, return Type error
-        cond=expression_node.get('condition')
+        cond=self.evaluate_expression(expression_node.get('condition')) #type:ignore
         if not isinstance(cond,bool):
             super().error(ErrorType.TYPE_ERROR, f"if condition not boolean")
         
@@ -299,10 +326,18 @@ class Interpreter(InterpreterBase):
     def return_statement_execution(self, expression_node:Element):
         # if something to return, return it
         # terminate current function immediately (if in main, terminate program)
-        rtr=expression_node.get('expression')
+        rtr=self.evaluate_expression(expression_node.get('expression')) #type:ignore
+        if self.scope == ("main",0):
+                self.scope=None # tell main to exit
+        
+        # else, what's returned could still be used:
+        last_scope=self.scope_stack.pop()
+
         if rtr==None:
+            self.scope=last_scope
             return
         else:
+            self.scope=last_scope
             return self.evaluate_expression(rtr)
     
     
