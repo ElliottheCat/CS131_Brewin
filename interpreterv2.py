@@ -1,7 +1,7 @@
 from intbase import InterpreterBase, ErrorType
 from brewparse import parse_program
 
-from typing import Optional, Dict, Any 
+from typing import Optional, Dict, Any, Tuple
 from element import Element
 
 generate_image = False
@@ -40,7 +40,9 @@ class Interpreter(InterpreterBase):
     def __init__(self, console_output: bool =True, inp:str|None = None, trace_output: bool=False):
         super().__init__(console_output, inp) # call InterpreterBase's constructor
         self.env = Environment()
-        self.user_function_def : Dict[str,Element] = {} # name: element.
+
+        self.user_function_def : Dict[Tuple[str,int],Element] = {} # (name, arg#): element.
+
         self.integer_ops_bi = {"-", "/","*"} # NOTE: use // for integer division and truncation in python. 
         self.integer_ops_un = {"-"}
         self.integer_ops_com = {"<","<=",">",">="}
@@ -62,15 +64,18 @@ class Interpreter(InterpreterBase):
         ### TODO: Update to hold the user defined functions inside self.function_def 
 
         for func in ast.get('functions'):
-            self.user_function_def[func.get('name')]=func # this also pushes main into the list
+            # use name AND arg count as identification
+            name=func.get('name')
+            args=len(func.get('args'))
+            self.user_function_def[(name,args)]=func # this also pushes main into the list
 
-        if "main" not in self.user_function_def:
-            super().error(ErrorType.NAME_ERROR, "main function not found")
+        if ("main",0) not in self.user_function_def:
+            super().error(ErrorType.NAME_ERROR, f"main function not found")
 
-        main_func= self.user_function_def["main"]
+        main_func= self.user_function_def[("main",0)]
 
         if main_func == None:
-                super().error(ErrorType.NAME_ERROR,"No main() function was found")
+                super().error(ErrorType.NAME_ERROR,f"No main() function was found")
         
         else:
             self.run_func(main_func)
@@ -207,7 +212,7 @@ class Interpreter(InterpreterBase):
             op1=self.evaluate_expression(expression_node.get('op1')) #type: ignore
             op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
             if ((not isinstance(op1,int)) or (not isinstance(op2,int) )): #f an expression attempts to operate on a string (e.g., 5 + "foo"), then your interpreter must generate an error
-                super().error(ErrorType.TYPE_ERROR, f"adding non integers")
+                super().error(ErrorType.TYPE_ERROR, f"integer arithmitic on non integers")
             
             if kind == "-":
                 return op1 - op2
@@ -216,11 +221,24 @@ class Interpreter(InterpreterBase):
                 return op1 // op2
             elif kind == "*":
                 return op1 * op2
+        
+        elif kind in self.string_or_int_ops_bi:
+            op1=self.evaluate_expression(expression_node.get('op1')) #type: ignore
+            op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
+            if ((not isinstance(op1,int)) or (not isinstance(op2,int) )):
+                if ((not isinstance(op1,str)) or (not isinstance(op2,str) )):
+                    super().error(ErrorType.TYPE_ERROR, f"add or concatenating non int and non string")
             
+            #python + works the same for strign and int for our purposes
+            return op1+op2 #type: ignore
+        
+            
+
+
         elif kind == self.NEG_NODE:
             op=self.evaluate_expression(expression_node.get('op1')) #type: ignore
             if not isinstance(op,int):
-                super().error(ErrorType.TYPE_ERROR, "int unary negation of non-integer")
+                super().error(ErrorType.TYPE_ERROR, f"int unary negation of non-integer")
 
             return - op
 
