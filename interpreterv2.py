@@ -209,6 +209,11 @@ class Interpreter(InterpreterBase):
             arg_len=len(args) #type:ignore
             new_env=Environment()
             called_func=self.user_function_def[(func_name, arg_len)]#type: ignore
+            
+            # evaluate teh variables to their values while we are still in the old scope. Else, we will have issues such as variable not defined if we evaluate it after entering the new funciton scope.
+            values=[]
+            for arg in args: #type:ignore
+                values.append(self.evaluate_expression(arg))
 
             #enter new funciton scope
             last_scope=self.scope
@@ -216,11 +221,12 @@ class Interpreter(InterpreterBase):
             self.scope=(func_name, arg_len)
             self.env=new_env
 
-            name_list=arg_name=called_func.get('args')
+            name_list=called_func.get('args')
 
             for i in range(arg_len):
-                arg_name=name_list[i].get('name') #type:ignore # name_list[i] is a argument node!!!!! remember to use get name!
-                arg_val=self.evaluate_expression(args[i]) #type:ignore
+                arg_name=name_list[i].get('name') #type:ignore 
+                # name_list[i] is a argument node!!!!! remember to use get name!
+                arg_val=values[i] #type:ignore
                 if not self.env.fdef(arg_name):
                     super().error(ErrorType.NAME_ERROR, "variable already defined")
                 if not self.env.set(arg_name, arg_val):
