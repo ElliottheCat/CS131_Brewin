@@ -3,19 +3,34 @@ from interpreterv1 import Interpreter
 
 
 program_source="""
+
 def main() {
- var i;
- i = 3;
- while (i > 0) {
-  print(i);
-  i = i - 1;
- }
+  var a;
+  a = 5;
+  foo(10);
+  foo(20,30);
 }
+
+def foo(a) {
+  print(a);
+}
+
+def foo(a,b) {
+  print(a," ",b);
+}
+
+/*
+*OUT*
+10
+20 30
+*OUT*
+*/
+
 """
 
 
 def main():
-    ast=parse_program(program_source,False)
+    ast=parse_program(program_source,True)
     # added save to png in plot.py, doesn't affect other stuff. 
     #ast = parse_program(program_source, False)
     #print(ast.elem_type)             

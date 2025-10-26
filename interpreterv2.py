@@ -40,8 +40,8 @@ class Interpreter(InterpreterBase):
     def __init__(self, console_output: bool =True, inp:str|None = None, trace_output: bool=False):
         super().__init__(console_output, inp) # call InterpreterBase's constructor
         self.env = Environment() # initialize to main
-        self.scope = ("main",0)
-        self.scope_stack=[("main",0,self.env)] #including environment!
+        self.scope = ("main",0) # function we are in
+        self.scope_stack=[("main",0,self.env)] #including the just created environment
         self.user_function_def : Dict[Tuple[str,int],Element] = {} # (name, arg#): element.
 
         self.integer_ops_bi = {"-", "/","*"} # NOTE: use // for integer division and truncation in python. 
@@ -203,8 +203,27 @@ class Interpreter(InterpreterBase):
 
                 if s:
                     return str (s) # I guess input is always a string so this coersion is unnecessary, but I want to make sure it fits the type.
-        
-        # TODO: for user defined funciton, push new scope including passed in variables by value on to scope stack.
+        elif (func_name, len(args)) in self.user_function_def: #type:ignore
+            # TODO: for user defined funciton, push new scope including passed in variables by value on to scope stack.
+            # entering user defined function, we need a new environment.
+            arg_len=len(args) #type:ignore
+            new_env=Environment()
+            called_func=self.user_function_def[(func_name, arg_len)]#type: ignore
+
+            #enter new funciton scope
+            self.scope=(func_name, arg_len)
+            self.env=new_env
+
+            for i in range(arg_len):
+                arg_name=called_func.get('args')[i] #type:ignore
+                arg_val=self.evaluate_expression(args[i]) #type:ignore
+                if not self.env.set(arg_name, arg_val):
+                    super().error(ErrorType.NAME_ERROR, "variable not defined")
+
+            self.scope_stack.append((func_name,arg_len,new_env)) #type:ignore
+
+            self.run_func(called_func)
+            
 
 
 
@@ -265,8 +284,8 @@ class Interpreter(InterpreterBase):
         elif kind in self.string_or_int_ops_bi:
             op1=self.evaluate_expression(expression_node.get('op1')) #type: ignore
             op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
-            if ((not isinstance(op1,int)) or (not isinstance(op2,int) )):
-                if ((not isinstance(op1,str)) or (not isinstance(op2,str) )):
+            if (  not (type(op1) is int and type(op2) is int) ):
+                if ( not (isinstance(op1,str) and isinstance(op2,str)) ):
                     super().error(ErrorType.TYPE_ERROR, f"add or concatenating non int and non string")
             
             #python + works the same for strign and int for our purposes
@@ -275,7 +294,7 @@ class Interpreter(InterpreterBase):
         elif kind in self.integer_ops_com:
             op1=self.evaluate_expression(expression_node.get('op1')) #type: ignore
             op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
-            if ((not isinstance(op1,int)) or (not isinstance(op2,int) )): 
+            if ((not type(op1) is int) or (not type(op2) is int )): # bool is subtype of int
                 super().error(ErrorType.TYPE_ERROR, f"integer comparison on non integers")
             
             match kind:
