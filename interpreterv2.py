@@ -159,7 +159,15 @@ class Interpreter(InterpreterBase):
             out = ""
 
             for arg in args: #type: ignore
-                out += str(self.evaluate_expression(arg))
+                val= self.evaluate_expression(arg)
+                if isinstance(val, bool): # have to manually convert to the lowercase
+                    match val:
+                        case True:
+                            out += "true"
+                        case False:
+                            out += "false"
+                else:
+                    out += str(self.evaluate_expression(arg))
 
             super().output(out)
 
@@ -280,10 +288,37 @@ class Interpreter(InterpreterBase):
                 case ">=":
                     return op1 >= op2
             
+        elif kind in self.boolean_ops_bi:
+            op1=self.evaluate_expression(expression_node.get('op1')) #type: ignore
+            op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
+            if ((not isinstance(op1,bool)) or (not isinstance(op2,bool) )): 
+                super().error(ErrorType.TYPE_ERROR, f"bool binary on non booleans")
 
-
+            match kind:
+                case "&&":
+                    return op1 and op2
+                case "||":
+                    return op1 or op2
         
+        elif kind in self.ops_com:
+            op1=self.evaluate_expression(expression_node.get('op1')) #type: ignore
+            op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
+            t1 = type(op1)
+            t2 = type(op2)
+            
+            equal=True
+            if t1 != t2:
+                equal= False
+            elif op1 == None and op2==None: # just a special case I want to make sure it works
+                equal=True
+            # everything should be the same type at this point: 
+            equal = op1 == op2
 
+            match kind:
+                case "==":
+                    return equal
+                case "!=":
+                    return not equal
             
         return
     
