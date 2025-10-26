@@ -44,7 +44,7 @@ class Interpreter(InterpreterBase):
         self.user_function_def : Dict[Tuple[str,int],Element] = {} # (name, arg#): element.
 
         self.integer_ops_bi = {"-", "/","*"} # NOTE: use // for integer division and truncation in python. 
-        self.integer_ops_un = {"-"}
+        # self.integer_ops_un = {"-"} # covered in NEG_NODE already!
         self.integer_ops_com = {"<","<=",">",">="}
 
         self.boolean_ops_bi = {"||","&&"}
@@ -103,6 +103,12 @@ class Interpreter(InterpreterBase):
             self.assign_statement(statement_node)
         elif kind==self.FCALL_NODE:
             self.func_call_statement(statement_node)
+        elif kind==self.IF_NODE:
+            self.if_statement_execution(statement_node)
+        elif kind==self.WHILE_NODE:
+            self.while_statement_execution(statement_node)
+        elif kind==self.RETURN_NODE:
+            self.return_statement_execution(statement_node)
 
 
         ### TODO: for future project, check user function definition validity and call it
@@ -206,6 +212,13 @@ class Interpreter(InterpreterBase):
         elif kind == self.FCALL_NODE:
             return self.func_call_statement(expression_node) #call function.
         
+        elif kind == self.NEG_NODE:
+            op=self.evaluate_expression(expression_node.get('op1')) #type: ignore
+            if not isinstance(op,int):
+                super().error(ErrorType.TYPE_ERROR, f"int unary negation of non-integer")
+            return - op
+        
+        elif kind == self.
         elif kind in self.integer_ops_bi:
             # This evealuation step automatically handles any nested functions or +/- such as (9+(7-8)) reflected in AST after parsing
             
@@ -235,12 +248,7 @@ class Interpreter(InterpreterBase):
             
 
 
-        elif kind == self.NEG_NODE:
-            op=self.evaluate_expression(expression_node.get('op1')) #type: ignore
-            if not isinstance(op,int):
-                super().error(ErrorType.TYPE_ERROR, f"int unary negation of non-integer")
-
-            return - op
+        
 
             
         return
