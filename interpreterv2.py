@@ -176,6 +176,8 @@ class Interpreter(InterpreterBase):
                             out += "true"
                         case False:
                             out += "false"
+                elif val == None:
+                    out+="nil" # must print nil
                 else:
                     out += str(val)
 
