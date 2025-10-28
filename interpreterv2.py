@@ -94,19 +94,18 @@ class Interpreter(InterpreterBase):
     def run_func(self, func_node:Element):
         self.set_return=False
         
-        name=func_node.get('name')
-        args=len(func_node.get('args')) #type: ignore
-        scope=(name,args)
-
         stms=func_node.get('statements')
 
         if stms != None:
             for statement_node in stms:
+                
+                temp = self.run_statement(statement_node)
                 if self.set_return: #return logic
+                    return temp
                     if self.scope == None: #exited form main function
                         return None
+                    
                     break
-                self.run_statement(statement_node)
 
 
 
@@ -170,7 +169,7 @@ class Interpreter(InterpreterBase):
 
             for arg in args: #type: ignore
                 val= self.evaluate_expression(arg)
-                if isinstance(val, bool): # have to manually convert to the lowercase
+                if type(val) is bool: # have to manually convert to the lowercase
                     match val:
                         case True:
                             out += "true"
@@ -248,13 +247,11 @@ class Interpreter(InterpreterBase):
             #self.scope_stack.append((func_name,arg_len,new_env)) #type:ignore
 
             self.run_func(called_func)
-            
-            
-            
+
             self.scope=last_scope
             self.env=last_env
-            if self.set_return:
-                self.set_return = False # This keeps the function scope here! we don't end up returning outer function too!
+            
+            self.set_return = False # This keeps the function scope here! we don't end up returning outer function too!
             if self.return_stack: #if there is anything to return
                 
                 return self.return_stack.pop()
@@ -277,9 +274,11 @@ class Interpreter(InterpreterBase):
         
         elif kind==self.QUALIFIED_NAME_NODE:
             var_name=expression_node.get('name')
-            value = self.env.get(var_name)
-            if value is None:
+            if not var_name in self.env.get(var_name): #type: ignore
                 super().error(ErrorType.NAME_ERROR, "variable not defined")
+            value = self.env.get(var_name) # shouldn't just check if it;s None!!!! nil is a value!!!!
+            
+                
             return value #fetch variable from our dictionary
         
         elif kind == self.FCALL_NODE:
@@ -293,7 +292,7 @@ class Interpreter(InterpreterBase):
         
         elif kind == self.NOT_NODE:#logical not
             op=self.evaluate_expression(expression_node.get('op1')) #type: ignore
-            if not isinstance(op,bool):
+            if type(op) is not bool:
                 super().error(ErrorType.TYPE_ERROR, f"bool unary negation of non-boolean")
 
             return not op
@@ -377,7 +376,7 @@ class Interpreter(InterpreterBase):
                 equal=True
             elif op1 ==None or op2==None:
                 return False
-            elif t1 != t2:
+            elif t1 is not t2:
                 equal= False
             else:
             # everything should be the same type at this point: 
@@ -395,7 +394,7 @@ class Interpreter(InterpreterBase):
     def if_statement_execution(self, expression_node:Element):
         # TODO: if condition not Boolean, return Type error
         cond=self.evaluate_expression(expression_node.get('condition')) #type:ignore
-        if not isinstance(cond,bool):
+        if type(cond) is not bool:
             super().error(ErrorType.TYPE_ERROR, f"if condition not boolean")
 
         if cond:
@@ -408,6 +407,8 @@ class Interpreter(InterpreterBase):
                     #if self.set_return: # return if a statment made the function return1!!!!
                         #return
                     self.run_statement(stm)
+                    if self.set_return: # return if a statment made the function return1!!!!
+                            return # always return if after a statement we returned
 
 
         return
@@ -416,7 +417,7 @@ class Interpreter(InterpreterBase):
     def while_statement_execution(self, expression_node:Element):
         # TODO: if condition not Boolean, return Type error
         cond=self.evaluate_expression(expression_node.get('condition')) #type:ignore
-        if not isinstance(cond,bool):
+        if type(cond) is not bool:
             super().error(ErrorType.TYPE_ERROR, f"if condition not boolean")
         
         to_exex=expression_node.get('statements')
@@ -424,12 +425,12 @@ class Interpreter(InterpreterBase):
             
             if to_exex:
                 for stm in to_exex:
-                        #if self.set_return: # return if a statment made the function return1!!!!
-                            #return
                         self.run_statement(stm)
+                        if self.set_return: # return if a statment made the function return1!!!!
+                            return
             
             cond=self.evaluate_expression(expression_node.get('condition')) #type:ignore
-            if not isinstance(cond,bool):
+            if type(cond) is not bool:
                 super().error(ErrorType.TYPE_ERROR, f"if condition not boolean")
 
 
