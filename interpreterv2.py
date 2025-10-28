@@ -251,9 +251,10 @@ class Interpreter(InterpreterBase):
             
             self.scope=last_scope
             self.env=last_env
-            
-            if self.return_stack: #if there is anything to return
+            if self.set_return:
                 self.set_return = False # This keeps the function scope here! we don't end up returning outer function too!
+            if self.return_stack: #if there is anything to return
+                
                 return self.return_stack.pop()
             else:
                 return None
