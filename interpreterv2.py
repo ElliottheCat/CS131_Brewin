@@ -42,6 +42,8 @@ class Interpreter(InterpreterBase):
         self.env = Environment() # initialize to main
         self.scope = ("main",0) # function we are in
         self.scope_stack=[("main",0,self.env)] #including the just created environment
+        self.return_stack=[]
+        self.set_return=False
         self.user_function_def : Dict[Tuple[str,int],Element] = {} # (name, arg#): element.
 
         self.integer_ops_bi = {"-", "/","*"} # NOTE: use // for integer division and truncation in python. 
@@ -171,7 +173,7 @@ class Interpreter(InterpreterBase):
 
             super().output(out)
 
-            return 0  # undefined behavior
+            return None  # should return nil as the test cases defined
 
         
         elif func_name=='inputi':
@@ -239,7 +241,11 @@ class Interpreter(InterpreterBase):
             self.scope_stack.pop()
             self.scope=last_scope
             self.env=last_env
-            return 
+            
+            if self.set_return:
+                return self.return_stack.pop()
+            else:
+                return None
 
         #else log error for unknown functoin.
 
@@ -408,10 +414,13 @@ class Interpreter(InterpreterBase):
 
         if rtr==None:
             self.scope=last_scope
+            self.set_return=False
             return
         else:
             self.scope=last_scope
-            return self.evaluate_expression(rtr) #type: ignore
+            self.set_return=True
+            self.return_stack.append(self.evaluate_expression(rtr))#type: ignore
+            return
     
     
     
