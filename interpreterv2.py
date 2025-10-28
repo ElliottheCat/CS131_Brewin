@@ -156,6 +156,9 @@ class Interpreter(InterpreterBase):
 
     
     def func_call_statement(self, statement_node:Element) -> None|Any: # function can return anything, or nothing
+        
+        # reset return flag at the beginging of funciton calls
+
 
         func_name=statement_node.get('name')
         args=statement_node.get("args")
@@ -335,14 +338,27 @@ class Interpreter(InterpreterBase):
             
         elif kind in self.boolean_ops_bi:
             op1=self.evaluate_expression(expression_node.get('op1')) #type: ignore
-            op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
-            if ((not type(op1) is bool) or (not type(op2) is bool )): 
+            
+            if (not type(op1) is bool): 
                 super().error(ErrorType.TYPE_ERROR, f"bool binary on non booleans")
 
-            match kind:
+            match kind: # use lazy evaluation 
                 case "&&":
+                    if not op1:
+                        return False
+                    op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
+                    if (not type(op2) is bool ): 
+                        super().error(ErrorType.TYPE_ERROR, f"bool binary on non booleans")
+
                     return op1 and op2
                 case "||":
+                    if op1:
+                        return True
+                    
+                    op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
+                    if (not type(op2) is bool ): 
+                        super().error(ErrorType.TYPE_ERROR, f"bool binary on non booleans")
+
                     return op1 or op2
         
         elif kind in self.ops_com:
@@ -384,6 +400,8 @@ class Interpreter(InterpreterBase):
 
         if to_exex:
                 for stm in to_exex:
+                    #if self.set_return: # return if a statment made the function return1!!!!
+                        #return
                     self.run_statement(stm)
 
 
@@ -401,6 +419,8 @@ class Interpreter(InterpreterBase):
             
             if to_exex:
                 for stm in to_exex:
+                        #if self.set_return: # return if a statment made the function return1!!!!
+                            #return
                         self.run_statement(stm)
             
             cond=self.evaluate_expression(expression_node.get('condition')) #type:ignore
