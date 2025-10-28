@@ -44,7 +44,7 @@ class Interpreter(InterpreterBase):
         # self.scope_stack=[("main",0,self.env)] #including the just created environment # we don' tneed scope stack anymore. we are keeping track of scope staically inside the FCALL funciton
         self.return_stack=[]
         self.set_return=False
-        self.something_to_return=False
+        
         self.user_function_def : Dict[Tuple[str,int],Element] = {} # (name, arg#): element.
 
         self.integer_ops_bi = {"-", "/","*"} # NOTE: use // for integer division and truncation in python. 
@@ -93,7 +93,7 @@ class Interpreter(InterpreterBase):
 
     def run_func(self, func_node:Element):
         self.set_return=False
-        self.something_to_return=False
+        
         name=func_node.get('name')
         args=len(func_node.get('args')) #type: ignore
         scope=(name,args)
@@ -247,11 +247,13 @@ class Interpreter(InterpreterBase):
 
             self.run_func(called_func)
             
-            #self.scope_stack.pop()
+            
+            
             self.scope=last_scope
             self.env=last_env
             
-            if self.something_to_return:
+            if self.return_stack: #if there is anything to return
+                self.set_return = False # This keeps the function scope here! we don't end up returning outer function too!
                 return self.return_stack.pop()
             else:
                 return None
@@ -447,11 +449,11 @@ class Interpreter(InterpreterBase):
 
         if rtr==None:
             self.set_return=True
-            self.something_to_return=False
+            
             return
         else:
             self.set_return=True
-            self.something_to_return=True
+            
             self.return_stack.append(rtr)#type: ignore
             return
     
