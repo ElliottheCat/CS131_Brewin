@@ -274,7 +274,7 @@ class Interpreter(InterpreterBase):
         
         elif kind==self.QUALIFIED_NAME_NODE:
             var_name=expression_node.get('name')
-            if not var_name in self.env.get(var_name): #type: ignore
+            if not self.env.exists(var_name):
                 super().error(ErrorType.NAME_ERROR, "variable not defined")
             value = self.env.get(var_name) # shouldn't just check if it;s None!!!! nil is a value!!!!
             
