@@ -101,6 +101,8 @@ class Interpreter(InterpreterBase):
         if stms != None:
             for statement_node in stms:
                 if self.set_return: #return logic
+                    if self.scope == None: #exited form main function
+                        return None
                     break
                 self.run_statement(statement_node)
 
@@ -407,7 +409,11 @@ class Interpreter(InterpreterBase):
     def return_statement_execution(self, expression_node:Element):
         # if something to return, return it
         # terminate current function immediately (if in main, terminate program)
-        rtr=self.evaluate_expression(expression_node.get('expression')) #type:ignore
+        expr=expression_node.get('expression')
+        if expr:
+            rtr=self.evaluate_expression(expression_node.get('expression')) #type:ignore
+        else:
+            rtr=None
         if self.scope == ("main",0):
                 self.scope=None # tell main to exit
         
