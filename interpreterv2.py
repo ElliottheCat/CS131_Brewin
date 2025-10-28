@@ -41,7 +41,7 @@ class Interpreter(InterpreterBase):
         super().__init__(console_output, inp) # call InterpreterBase's constructor
         self.env = Environment() # initialize to main
         self.scope = ("main",0) # function we are in
-        self.scope_stack=[("main",0,self.env)] #including the just created environment
+        # self.scope_stack=[("main",0,self.env)] #including the just created environment # we don' tneed scope stack anymore. we are keeping track of scope staically inside the FCALL funciton
         self.return_stack=[]
         self.set_return=False
         self.user_function_def : Dict[Tuple[str,int],Element] = {} # (name, arg#): element.
@@ -91,6 +91,7 @@ class Interpreter(InterpreterBase):
 
 
     def run_func(self, func_node:Element):
+        self.set_return=False
         name=func_node.get('name')
         args=len(func_node.get('args')) #type: ignore
         scope=(name,args)
@@ -99,7 +100,7 @@ class Interpreter(InterpreterBase):
 
         if stms != None:
             for statement_node in stms:
-                if not self.scope==scope: #return logic
+                if self.set_return: #return logic
                     break
                 self.run_statement(statement_node)
 
@@ -121,7 +122,7 @@ class Interpreter(InterpreterBase):
             self.return_statement_execution(statement_node)
 
 
-        ### TODO: for future project, check user function definition validity and call it
+        ### TODO: for future project, check user function definition validity and call it. - DONE
 
 
 
@@ -234,11 +235,12 @@ class Interpreter(InterpreterBase):
                 if not self.env.set(arg_name, arg_val):
                     super().error(ErrorType.NAME_ERROR, "variable not defined")
 
-            self.scope_stack.append((func_name,arg_len,new_env)) #type:ignore
+            # don't need scope stack if we are keeping track of the last scope
+            #self.scope_stack.append((func_name,arg_len,new_env)) #type:ignore
 
             self.run_func(called_func)
             
-            self.scope_stack.pop()
+            #self.scope_stack.pop()
             self.scope=last_scope
             self.env=last_env
             
@@ -410,16 +412,14 @@ class Interpreter(InterpreterBase):
                 self.scope=None # tell main to exit
         
         # else, what's returned could still be used:
-        last_scope=self.scope_stack.pop()
+        
 
         if rtr==None:
-            self.scope=last_scope
-            self.set_return=False
+            self.set_return=True
             return
         else:
-            self.scope=last_scope
             self.set_return=True
-            self.return_stack.append(self.evaluate_expression(rtr))#type: ignore
+            self.return_stack.append(rtr)#type: ignore
             return
     
     
