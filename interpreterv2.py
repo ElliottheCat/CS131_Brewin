@@ -374,10 +374,10 @@ class Interpreter(InterpreterBase):
             equal=True
             if op1 == None and op2==None: # just a special case I want to make sure it works
                 equal=True
-            elif op1 ==None or op2==None:
-                return False
-            elif t1 is not t2:
-                equal= False
+            elif op1 == None or op2==None: # everything not None is not equal to None 
+                equal = False
+            elif not t1 == t2:
+                equal = False
             else:
             # everything should be the same type at this point: 
                 equal = (op1 == op2)
