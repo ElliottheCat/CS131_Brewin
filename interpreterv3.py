@@ -17,8 +17,6 @@ class Type(enum.Enum):
 
 
 
-
-
 generate_image = False
 
 
@@ -91,11 +89,11 @@ class Interpreter(InterpreterBase):
         super().__init__(console_output, inp) # call InterpreterBase's constructor
         self.env = Environment() # initialize to main
         self.scope = ("main",0) # function we are in
-        self.scope_stack=[("main",0,self.env)] #including the just created environment # Brought scope stack back for variables
+
         self.return_stack=[]
         self.set_return=False
         
-        self.user_function_def : Dict[Tuple[str,int],Element] = {} # (name, arg#): element.
+        self.user_function_def : Dict[Tuple[str,int,Tuple[Type]],Element] = {} # (name, arg#): element.
 
         self.integer_ops_bi = {"-", "/","*"} # NOTE: use // for integer division and truncation in python. 
         # self.integer_ops_un = {"-"} # covered in NEG_NODE already!
@@ -120,8 +118,10 @@ class Interpreter(InterpreterBase):
         for func in ast.get('functions'):
             # use name AND arg count as identification
             name=func.get('name')
-            args=len(func.get('args'))
-            self.user_function_def[(name,args)]=func # this also pushes main into the list
+            args=func.get('args')
+            args_len=len(args)
+            args_type=self.get_tuple_args_type(args)
+            self.user_function_def[(name,args_len,args_type)]=func # this also pushes main into the list
 
         if ("main",0) not in self.user_function_def:
             super().error(ErrorType.NAME_ERROR, f"main function not found")
@@ -136,13 +136,20 @@ class Interpreter(InterpreterBase):
         
 
         
-        
+    def get_tuple_args_type(self, args:list[Element]):
+        args_type_list=()
+        for arg in args:
+            arg_type=self.determine_var_type(arg)
+            args_type_list=args_type_list+(arg_type,)
+
+        return args_type_list
+
         
 
 
 
     def run_func(self, func_node:Element):
-        self.set_return=False
+        self.set_return=False 
         
         stms=func_node.get('statements')
 
@@ -152,10 +159,7 @@ class Interpreter(InterpreterBase):
                 temp = self.run_statement(statement_node)
                 if self.set_return: #return logic
                     return temp
-                    if self.scope == None: #exited form main function
-                        return None
-                    
-                    break
+
 
 
 
@@ -526,4 +530,20 @@ class Interpreter(InterpreterBase):
 
 
 
+    def determine_var_type(self, var:Element):
+        varname=var.get('name')
+        vtype=varname[-1] #type:ignore
+        if vtype=='i':
+            return Type.INT
+        if vtype=='b':
+            return Type.BOOL
+        if vtype=='s':
+            return Type.STRING
+        if vtype=='o':
+            return Type.OBJ
+        
+        super().error(ErrorType.TYPE_ERROR, "invalid variable type in name")
+
+
+    
 
