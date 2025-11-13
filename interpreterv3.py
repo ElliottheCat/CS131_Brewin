@@ -174,9 +174,6 @@ class Interpreter(InterpreterBase):
 
     
     def run_func(self, func_call_ast):
-
-        
-
         fcall_name, args = func_call_ast.get("name"), func_call_ast.get("args")
 
         if fcall_name == "inputi" or fcall_name == "inputs":
@@ -202,11 +199,12 @@ class Interpreter(InterpreterBase):
         res, _ = self.run_statements(func_def.get("statements"))
         self.env.exit_func()
         self.cur_func=last_func
+        
         return res
     
 
-    def __run_statements(self, statements):
-        res, ret = Value(), False
+    def run_statements(self, statements):
+        res, ret = None, False
 
         for statement in statements:
             kind = statement.elem_type
@@ -218,37 +216,22 @@ class Interpreter(InterpreterBase):
             elif kind == self.FCALL_NODE:
                 self.func_call_statement(statement)
             elif kind == self.IF_NODE:
-                res, ret = self.run_if(statement)
-                if ret:
+                res, ret = self.if_statement_execution(statement)
+                if self.should_return:
                     break
             elif kind == self.WHILE_NODE:
-                res, ret = self.__run_while(statement)
-                if ret:
+                res, ret = self.while_statement_execution(statement)
+                if self.should_return:
                     break
             elif kind == self.RETURN_NODE:
-                res, ret = self.__run_return(statement)
+                if self.type_translation(self.cur_func)!=Type.VOID:
+                    res, ret = self.return_statement_execution(statement) #type:ignore
+                    #must return something if current function is not void! 
+                else:
+                    self.should_return= True # res stays None
                 break
-
+        
         return res, ret
-
-    def run_statement(self, statement_node: Element):
-        kind = statement_node.elem_type
-        if kind==self.VAR_DEF_NODE:
-            self.var_def_statement(statement_node)
-        elif kind=='=':
-            self.assign_statement(statement_node)
-        elif kind==self.FCALL_NODE:
-            return self.func_call_statement(statement_node) # return the value!
-        elif kind==self.IF_NODE:
-            self.if_statement_execution(statement_node)
-        elif kind==self.WHILE_NODE:
-            self.while_statement_execution(statement_node)
-        elif kind==self.RETURN_NODE:
-            self.return_statement_execution(statement_node)
-
-
-    
-
 
 
 
@@ -261,18 +244,23 @@ class Interpreter(InterpreterBase):
         if not self.env.fdef(var_type, var_name):
             super().error(ErrorType.NAME_ERROR, "variable already defined")
         
-    
-    def assign_statement(self, statement:Element):
-        name = statement.get("var")
-        value = self.evaluate_expression(statement.get("expression")) # type:ignore
+    def var_val_type_match(self,name,value):
         var_type=self.determine_var_type(name)# type:ignore
         value_type=self.type_translation(value)
         if not var_type == value_type:
             super().error(ErrorType.NAME_ERROR, "variable type and value type doesn't match in assignemnt")
+            return False
+        return True
+
+    def assign_statement(self, statement:Element):
+        name = statement.get("var")
+        value = self.evaluate_expression(statement.get("expression")) # type:ignore
+        if not self.var_val_type_match(name,value):
+            super().error(ErrorType.NAME_ERROR, "variable type and value type doesn't match in assignemnt")
         if not self.env.set(name, value):
             super().error(ErrorType.NAME_ERROR, "variable not defined")
         self.env.set(name, var_type,value) # type:ignore ignore possible non from get expression
-    
+
     def type_translation(self, val): 
         if isinstance(val,Value):
             return val.t
@@ -428,7 +416,7 @@ class Interpreter(InterpreterBase):
         #else log error for unknown functoin.
 
         super().error(ErrorType.NAME_ERROR, f"Unknown function")
-    
+    """This is my implementation, should delet it since it's bad and doesn't match up with the standard answers"""
 
     def evaluate_expression(self, expression_node:Element):
         kind = expression_node.elem_type
@@ -586,32 +574,51 @@ class Interpreter(InterpreterBase):
 
         return res, ret
     
-    
-    def return_statement_execution(self, statement):
-        expr = statement.get("expression")
-        ftype=self.cur_func[-1] #type:ignore Assume fname exists as long as parser worked, get last char 
-        rtr_type=Type.VOID # default
+    def func_retval_type_match(self, funcname,retVal):
+        """
+        Checks a funtionls return type, if it mathches a given value, and return the return type as well as teh comparing result."""
+        ftype=funcname[-1] #type:ignore Assume fname exists as long as parser worked, get last char 
+        f_rtr_type=Type.VOID # default
         if ftype=='i':
-            rtr_type= Type.INT
+            f_rtr_type= Type.INT
         elif ftype=='s':
-            rtr_type= Type.STRING
+            f_rtr_type= Type.STRING
         elif ftype=='b':
-            rtr_type= Type.BOOL
+            f_rtr_type= Type.BOOL
         elif ftype=='o':
-            rtr_type= Type.OBJ
+            f_rtr_type= Type.OBJ
         elif ftype=='v':
-            rtr_type= Type.VOID # MUST NOT RETURN VALUE
+            f_rtr_type= Type.VOID # MUST NOT RETURN VALUE
         else:
             super().error(ErrorType.TYPE_ERROR, "invalid funciton return type in name") # should enver reach hear after initial screenign in loading functions
-        
-        if expr and ftype == Type.VOID:
-            super().error(ErrorType.TYPE_ERROR, "returning value from void functions")
 
-        if expr and ftype != Type.VOID:
-            return (self.evaluate_expression(expr), True)
-        elif ftype != Type.VOID:
+        ret_val_type=self.type_translation(retVal)
+        if f_rtr_type==ret_val_type:
+            return (f_rtr_type,True)
+        super().error(ErrorType.TYPE_ERROR, "function return value doesn't match return type") # NO IMPLICITY TYPE CONVERSION
+
+        return (None,False)
+
+    def return_statement_execution(self, statement):
+        expr = statement.get("expression")
+        
+        
+        if expr:
+            rval=self.evaluate_expression(expr)
+            ftype,match=self.func_retval_type_match(self.cur_func,rval) #type:ignore Assume fname exists as long as parser worked, get last char 
+            if ftype==Type.VOID or match == False:
+                super().error(ErrorType.TYPE_ERROR, "returning value from void functions OR return type doesn't match with return value")
+            # else, we can return the results and set self.should_return to True
+            self.should_return=True
+            return rval
+
+        self.should_return=True
+        
+        ftype, _ =self.func_retval_type_match(self.cur_func,0) # doens't care if match or not
+        if ftype!=Type.VOID:
             return_val=Value(ftype)#automatically creates the default value of it 
-            return (return_val,True)
+            
+            return return_val
         
         return # return for void functions
 
