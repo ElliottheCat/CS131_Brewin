@@ -219,7 +219,7 @@ class Interpreter(InterpreterBase):
             super().error(ErrorType.NAME_ERROR, "variable not defined")
         self.env.set(name, var_type,value) # type:ignore ignore possible non from get expression
     
-    def type_translation(self, val):
+    def type_translation(self, val): 
         if isinstance(val,Value):
             return val.t
         if type(val) == bool:
@@ -237,14 +237,40 @@ class Interpreter(InterpreterBase):
         # else we exhausted all possible valid types
         super().error(ErrorType.TYPE_ERROR, "value type undefined, failed to translate")
 
-    
+
+    def handle_input(self, fcall_name, args):
+        """Handle inputi and inputs function calls"""
+        if len(args) > 1:
+            super().error(ErrorType.NAME_ERROR, "too many arguments for input function")
+
+        if args:
+            self.handle_print(args)
+
+        res = super().get_input()
+
+        return (
+            Value(Type.INT, int(res)) 
+            if fcall_name == "inputi"
+            else Value(Type.STRING, res)
+        )
+
+    def handle_print(self, args):
+        """Handle print function calls"""
+        out = ""
+
+        for arg in args:
+            c_out = self.evaluate_expression(arg) 
+            if c_out.t == Type.BOOL: #type: ignore
+                out += str(c_out.v).lower() #type: ignore
+            else:
+                out += str(c_out.v) #type: ignore
+        super().output(out)
+        return Value(Type.OBJ, None)
 
     
     def func_call_statement(self, statement_node:Element) -> None|Any: # function can return anything, or nothing
-        
+
         # reset return flag at the beginging of funciton calls
-
-
         func_name=statement_node.get('name')
         args=statement_node.get("args")
 
