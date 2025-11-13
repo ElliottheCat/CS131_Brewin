@@ -93,8 +93,6 @@ class Environment:
 
 
 
-
-
 class Interpreter(InterpreterBase):
     def __init__(self, console_output: bool =True, inp:str|None = None, trace_output: bool=False):
         super().__init__(console_output, inp) # call InterpreterBase's constructor
@@ -104,7 +102,7 @@ class Interpreter(InterpreterBase):
         self.return_stack=[]
         self.set_return=False
         
-        self.user_function_def : Dict[Tuple[str,Tuple[Type]],Element] = {} # (name, arg#): element.
+        self.user_function_def : Dict[Tuple[str,Tuple[Type,...]],Element] = {} # (name, arg#): element.
 
         self.integer_ops_bi = {"-", "/","*"} # NOTE: use // for integer division and truncation in python. 
         # self.integer_ops_un = {"-"} # covered in NEG_NODE already!
@@ -145,11 +143,11 @@ class Interpreter(InterpreterBase):
             self.run_func(main_func)
         
     def create_function_table(self, ast):
-        self.funcs = {}
+        self.user_function_def = {}
         for func in ast.get("functions"):
-            self.funcs[(func.get("name"), len(func.get("args")))] = func
+            self.user_function_def[(func.get("name"), self.get_tuple_args_type(func.get("args")))] = func
         
-    def get_tuple_args_type(self, args:list[Element]):
+    def get_tuple_args_type(self, args:list[Element]) -> Tuple[Type, ...]: # return variable length tuple
         args_type_list=()
         for arg in args:
             arg_type=self.determine_var_type(arg)
@@ -164,7 +162,7 @@ class Interpreter(InterpreterBase):
         return self.user_function_def[(name, parameter_type)]
 
 
- 
+    
 
     def run_func(self, func_node:Element):
         self.set_return=False
@@ -210,28 +208,35 @@ class Interpreter(InterpreterBase):
             super().error(ErrorType.NAME_ERROR, "variable already defined")
         
     
-    def assign_statement(self, statement):
+    def assign_statement(self, statement:Element):
         name = statement.get("var")
-        value = self.evaluate_expression(statement.get("expression"))
-        var_type=self.determine_var_type(name)
-        if type(value) 
+        value = self.evaluate_expression(statement.get("expression")) # type:ignore
+        var_type=self.determine_var_type(name)# type:ignore
+        value_type=self.type_translation(value)
+        if not var_type == value_type:
+            super().error(ErrorType.NAME_ERROR, "variable type and value type doesn't match in assignemnt")
         if not self.env.set(name, value):
             super().error(ErrorType.NAME_ERROR, "variable not defined")
+        self.env.set(name, var_type,value) # type:ignore ignore possible non from get expression
     
+    def type_translation(self, val):
+        if isinstance(val,Value):
+            return val.t
+        if type(val) == bool:
+            return Type.BOOL
+        if type(val) == int:
+            return Type.INT
+        if type(val) == str:
+            return Type.STRING
+        
+        if val is None:
+            return Type.OBJ
+        if type(val) == dict: # All OBJ are dictionaries!!! No funcitons
+            return Type.OBJ
 
+        # else we exhausted all possible valid types
+        super().error(ErrorType.TYPE_ERROR, "value type undefined, failed to translate")
 
-
-    def assign_statement(self, statement_node:Element):
-
-        var_name=statement_node.get('var')
-        expr=statement_node.get('expression')
-
-        value = self.evaluate_expression(expr) # type: ignore
-
-        if not self.env.set(var_name, value):
-            super().error(ErrorType.NAME_ERROR, "variable not defined")
-
-        return
     
 
     
