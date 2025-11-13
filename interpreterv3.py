@@ -26,9 +26,9 @@ generate_image = False
 # NOTE: I am just using value None as nil in the project unless otherwise specified.
 
 class Value:
-    def __init__(self, t=None, v=None):
-        if t is None:
-            self.t = Type.NIL
+    def __init__(self, t, v=None):
+        if v is None:
+            self.t = t # only allow value to be None, Nil is not a type anymore!!!!
             self.v = None
         else:
             self.t = t
@@ -52,11 +52,11 @@ class Environment:
         self.env.pop()
 
     # define new variable at function scope
-    def fdef(self, varname):
+    def fdef(self, vartype, varname):
         if self.exists(varname):
             return False
         top_env = self.env[-1]
-        top_env[0][varname] = Value()
+        top_env[0][varname] = Value(vartype)
         return True
 
     def exists(self, varname):
@@ -82,11 +82,6 @@ class Environment:
         return True
 
 
-    def set(self, varname, value):
-        if not self.exists(varname):
-            return False
-        self.env[varname] = value
-        return True
 
 
 
@@ -512,8 +507,21 @@ class Interpreter(InterpreterBase):
     def determine_func_return_type(self, func:Element):
         fname=func.get('name')
         if fname=="main":
-            return Type.
-        return 
+            return Type.VOID
+        
+        ftype=fname[-1] #type:ignore Assume fname exists as long as parser worked, get last char 
+        if ftype=='i':
+            return Type.INT
+        if ftype=='s':
+            return Type.STRING
+        if ftype=='b':
+            return Type.BOOL
+        if ftype=='o':
+            return Type.OBJ
+        if ftype=='v':
+            return Type.VOID # MUST NOT RETURN VALUE
+    
+        super().error(ErrorType.TYPE_ERROR, "invalid funciton return type in name")
     
 
 
