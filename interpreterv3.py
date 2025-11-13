@@ -26,8 +26,19 @@ generate_image = False
 class Value:
     def __init__(self, t, v=None):
         if v is None:
-            self.t = t # only allow value to be None, Nil is not a type anymore!!!!
-            self.v = None
+            self.t = t
+            if t == Type.INT: # different default values according to types
+                self.v = 0
+            elif t == Type.BOOL:
+                self.v = False
+            elif t == Type.OBJ:
+                self.v = None
+            elif t == Type.STRING:
+                self.v = ""
+            else:
+                self.v = None # default to None, shouldn't reach here we have outside checks
+
+
         else:
             self.t = t
             self.v = v
@@ -93,7 +104,7 @@ class Interpreter(InterpreterBase):
         self.return_stack=[]
         self.set_return=False
         
-        self.user_function_def : Dict[Tuple[str,int,Tuple[Type]],Element] = {} # (name, arg#): element.
+        self.user_function_def : Dict[Tuple[str,Tuple[Type]],Element] = {} # (name, arg#): element.
 
         self.integer_ops_bi = {"-", "/","*"} # NOTE: use // for integer division and truncation in python. 
         # self.integer_ops_un = {"-"} # covered in NEG_NODE already!
@@ -119,14 +130,13 @@ class Interpreter(InterpreterBase):
             # use name AND arg count as identification
             name=func.get('name')
             args=func.get('args')
-            args_len=len(args)
-            args_type=self.get_tuple_args_type(args)
-            self.user_function_def[(name,args_len,args_type)]=func # this also pushes main into the list
+            args_types=self.get_tuple_args_type(args)
+            self.user_function_def[(name,args_types)]=func # this also pushes main into the list
 
         if ("main",0) not in self.user_function_def:
             super().error(ErrorType.NAME_ERROR, f"main function not found")
 
-        main_func= self.user_function_def[("main",0)]
+        main_func= self.user_function_def[("main",())]
 
         if main_func == None:
                 super().error(ErrorType.NAME_ERROR,f"No main() function was found")
@@ -134,7 +144,10 @@ class Interpreter(InterpreterBase):
         else:
             self.run_func(main_func)
         
-
+    def create_function_table(self, ast):
+        self.funcs = {}
+        for func in ast.get("functions"):
+            self.funcs[(func.get("name"), len(func.get("args")))] = func
         
     def get_tuple_args_type(self, args:list[Element]):
         args_type_list=()
@@ -145,14 +158,17 @@ class Interpreter(InterpreterBase):
         return args_type_list
 
         
+    def get_function(self, name, parameter_type=()):
+        if (name, parameter_type) not in self.user_function_def:
+            super().error(ErrorType.NAME_ERROR, "function not found")
+        return self.user_function_def[(name, parameter_type)]
 
 
+ 
 
     def run_func(self, func_node:Element):
-        self.set_return=False 
-        
+        self.set_return=False
         stms=func_node.get('statements')
-
         if stms != None:
             for statement_node in stms:
                 
@@ -184,12 +200,23 @@ class Interpreter(InterpreterBase):
 
 
 
-    def var_def_statement(self, statement_node:Element):
+    def var_def_statement(self, var:Element):
 
-        var_name=statement_node.get("name")
-        
-        if not self.env.fdef(var_name):
+        var_name=var.get("name")
+        var_type=self.determine_var_type(var)
+        if var_type not in ['i','o','b','s']:
+            super().error(ErrorType.TYPE_ERROR, "variable type not defined")
+        if not self.env.fdef(var_type, var_name):
             super().error(ErrorType.NAME_ERROR, "variable already defined")
+        
+    
+    def assign_statement(self, statement):
+        name = statement.get("var")
+        value = self.evaluate_expression(statement.get("expression"))
+        var_type=self.determine_var_type(name)
+        if type(value) 
+        if not self.env.set(name, value):
+            super().error(ErrorType.NAME_ERROR, "variable not defined")
     
 
 
@@ -431,66 +458,57 @@ class Interpreter(InterpreterBase):
             
         return
     
+    def if_statement_execution(self, statement):
+        cond = self.evaluate_expression(statement.get("condition"))
 
-    def if_statement_execution(self, expression_node:Element):
-        # TODO: if condition not Boolean, return Type error
-        cond=self.evaluate_expression(expression_node.get('condition')) #type:ignore
-        if type(cond) is not bool:
-            super().error(ErrorType.TYPE_ERROR, f"if condition not boolean")
+        if cond.t != Type.BOOL: #type:ignore
+            super().error(ErrorType.TYPE_ERROR, "condition must be boolean")
 
-        if cond:
-            to_exex=expression_node.get('statements')
-        else:
-            to_exex=expression_node.get('else_statements')
+        self.env.enter_block() 
 
-        if to_exex:
-                for stm in to_exex:
-                    #if self.set_return: # return if a statment made the function return1!!!!
-                        #return
-                    self.run_statement(stm)
-                    if self.set_return: # return if a statment made the function return1!!!!
-                            return # always return if after a statement we returned
+        res, ret = None, False
 
+        if cond.v: #type:ignore
+            # enter if body
+            res, ret = self.__run_statements(statement.get("statements"))
+        elif statement.get("else_statements"):
+            #enter else statement if condition is false and exist else statement
+            res, ret = self.__run_statements(statement.get("else_statements"))
 
-        return
+        self.env.exit_block()
+
+        return res, ret
     
 
-    def while_statement_execution(self, expression_node:Element):
-        # TODO: if condition not Boolean, return Type error
-        cond=self.evaluate_expression(expression_node.get('condition')) #type:ignore
-        if type(cond) is not bool:
-            super().error(ErrorType.TYPE_ERROR, f"if condition not boolean")
-        
-        to_exex=expression_node.get('statements')
-        while cond:
-            
-            if to_exex:
-                for stm in to_exex:
-                        self.run_statement(stm)
-                        if self.set_return: # return if a statment made the function return1!!!!
-                            return
-            
-            cond=self.evaluate_expression(expression_node.get('condition')) #type:ignore
-            if type(cond) is not bool:
-                super().error(ErrorType.TYPE_ERROR, f"if condition not boolean")
+    def while_statement_execution(self, statement:Element):
+        res, ret = Value(), False
 
+        while True:
+            cond = self.evaluate_expression(statement.get("condition")) # type:ignore
+            if cond.t != Type.BOOL: # type:ignore
+                super().error(ErrorType.TYPE_ERROR, "condition must be boolean")
 
-        return
+            if not cond.v: # type:ignore
+                # end loop if value is False
+                break
+
+            self.env.enter_block()
+            res, ret = self.__run_statements(statement.get("statements"))
+            self.env.exit_block()
+            if ret:
+                break
+
+        return res, ret
     
-
-    def return_statement_execution(self, expression_node:Element):
-        # if something to return, return it
-        # terminate current function immediately (if in main, terminate program)
-        expr=expression_node.get('expression')
+    
+    def return_statement_execution(self, statement):
+        expr = statement.get("expression")
         if expr:
-            rtr=self.evaluate_expression(expression_node.get('expression')) #type:ignore
-        else:
-            rtr=None
-        if self.scope == ("main",0):
-                self.scope=None # tell main to exit
-        
-        # else, what's returned could still be used:
-        
+            return (self.evaluate_expression(expr), True)
+        # else, return none
+        return (Value(), True)
+
+
 
         if rtr==None:
             self.set_return=True
