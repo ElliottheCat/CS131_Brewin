@@ -17,7 +17,7 @@ class Type(enum.Enum):
 
 
 
-generate_image = False
+generate_image = True
 
 
 
@@ -104,6 +104,9 @@ class Interpreter(InterpreterBase):
         
         self.user_function_def : Dict[Tuple[str,Tuple[Type,...]],Element] = {} # (name, arg#): element.
 
+        self.cur_func=None
+        self.should_return=False
+
         self.integer_ops_bi = {"-", "/","*"} # NOTE: use // for integer division and truncation in python. 
         # self.integer_ops_un = {"-"} # covered in NEG_NODE already!
         self.integer_ops_com = {"<","<=",">",">="}
@@ -140,12 +143,20 @@ class Interpreter(InterpreterBase):
                 super().error(ErrorType.NAME_ERROR,f"No main() function was found")
         
         else:
+            
             self.run_func(main_func)
         
     def create_function_table(self, ast):
         self.user_function_def = {}
         for func in ast.get("functions"):
-            self.user_function_def[(func.get("name"), self.get_tuple_args_type(func.get("args")))] = func
+            fname = func.get("name")
+            func_identity=(fname, self.get_tuple_args_type(func.get("args")))
+            if (func.get("name"), self.get_tuple_args_type(func.get("args"))) in self.user_function_def:
+                return super().error(ErrorType.NAME_ERROR,f"duplicate function with same parameters")
+            
+            if fname[-1] not in ['i','o','b','s','v'] and fname != "main":
+                return super().error(ErrorType.NAME_ERROR,f"function return type not defined") # all function other than main have to declare return type as last char
+            self.user_function_def[func_identity] = func
         
     def get_tuple_args_type(self, args:list[Element]) -> Tuple[Type, ...]: # return variable length tuple
         args_type_list=()
@@ -155,7 +166,6 @@ class Interpreter(InterpreterBase):
 
         return args_type_list
 
-        
     def get_function(self, name, parameter_type=()):
         if (name, parameter_type) not in self.user_function_def:
             super().error(ErrorType.NAME_ERROR, "function not found")
@@ -163,19 +173,63 @@ class Interpreter(InterpreterBase):
 
 
     
+    def run_func(self, func_call_ast):
 
-    def run_func(self, func_node:Element):
-        self.set_return=False
-        stms=func_node.get('statements')
-        if stms != None:
-            for statement_node in stms:
-                
-                temp = self.run_statement(statement_node)
-                if self.set_return: #return logic
-                    return temp
+        
+
+        fcall_name, args = func_call_ast.get("name"), func_call_ast.get("args")
+
+        if fcall_name == "inputi" or fcall_name == "inputs":
+            return self.handle_input(fcall_name, args)
+
+        if fcall_name == "print":
+            self.handle_print(args) # should return void if it's a print function!
+            return 
 
 
+        func_def = self.get_function(fcall_name, len(args))
 
+        formal_args = [a.get("name") for a in func_def.get("args")] #type:ignore
+        actual_args = [self.evaluate_expression(a) for a in args]
+
+        self.should_return=False# set the flag to false at begining
+        last_func=self.cur_func
+        self.cur_func=fcall_name # set current function's name so return knows what value to default to 
+        self.env.enter_func()
+        for formal, actual in zip(formal_args, actual_args):
+            self.env.fdef(self.type_translation(actual),formal)
+            self.env.set(formal, actual)
+        res, _ = self.run_statements(func_def.get("statements"))
+        self.env.exit_func()
+        self.cur_func=last_func
+        return res
+    
+
+    def __run_statements(self, statements):
+        res, ret = Value(), False
+
+        for statement in statements:
+            kind = statement.elem_type
+
+            if kind == self.VAR_DEF_NODE:
+                self.var_def_statement(statement)
+            elif kind == "=":
+                self.assign_statement(statement)
+            elif kind == self.FCALL_NODE:
+                self.func_call_statement(statement)
+            elif kind == self.IF_NODE:
+                res, ret = self.run_if(statement)
+                if ret:
+                    break
+            elif kind == self.WHILE_NODE:
+                res, ret = self.__run_while(statement)
+                if ret:
+                    break
+            elif kind == self.RETURN_NODE:
+                res, ret = self.__run_return(statement)
+                break
+
+        return res, ret
 
     def run_statement(self, statement_node: Element):
         kind = statement_node.elem_type
@@ -193,7 +247,7 @@ class Interpreter(InterpreterBase):
             self.return_statement_execution(statement_node)
 
 
-        ### TODO: for future project, check user function definition validity and call it. - DONE
+    
 
 
 
@@ -228,11 +282,12 @@ class Interpreter(InterpreterBase):
             return Type.INT
         if type(val) == str:
             return Type.STRING
-        
         if val is None:
             return Type.OBJ
         if type(val) == dict: # All OBJ are dictionaries!!! No funcitons
             return Type.OBJ
+        if val=='@':
+            return Type.OBJ # Or object references denoted by @
 
         # else we exhausted all possible valid types
         super().error(ErrorType.TYPE_ERROR, "value type undefined, failed to translate")
@@ -249,7 +304,7 @@ class Interpreter(InterpreterBase):
         res = super().get_input()
 
         return (
-            Value(Type.INT, int(res)) 
+            Value(Type.INT, int(res)) #type ignore
             if fcall_name == "inputi"
             else Value(Type.STRING, res)
         )
@@ -265,7 +320,7 @@ class Interpreter(InterpreterBase):
             else:
                 out += str(c_out.v) #type: ignore
         super().output(out)
-        return Value(Type.OBJ, None)
+        return #return void!
 
     
     def func_call_statement(self, statement_node:Element) -> None|Any: # function can return anything, or nothing
@@ -524,7 +579,7 @@ class Interpreter(InterpreterBase):
                 break
 
             self.env.enter_block()
-            res, ret = self.__run_statements(statement.get("statements"))
+            res, ret = self.run_statements(statement.get("statements"))
             self.env.exit_block()
             if ret:
                 break
@@ -534,10 +589,32 @@ class Interpreter(InterpreterBase):
     
     def return_statement_execution(self, statement):
         expr = statement.get("expression")
-        if expr:
+        ftype=self.cur_func[-1] #type:ignore Assume fname exists as long as parser worked, get last char 
+        rtr_type=Type.VOID # default
+        if ftype=='i':
+            rtr_type= Type.INT
+        elif ftype=='s':
+            rtr_type= Type.STRING
+        elif ftype=='b':
+            rtr_type= Type.BOOL
+        elif ftype=='o':
+            rtr_type= Type.OBJ
+        elif ftype=='v':
+            rtr_type= Type.VOID # MUST NOT RETURN VALUE
+        else:
+            super().error(ErrorType.TYPE_ERROR, "invalid funciton return type in name") # should enver reach hear after initial screenign in loading functions
+        
+        if expr and ftype == Type.VOID:
+            super().error(ErrorType.TYPE_ERROR, "returning value from void functions")
+
+        if expr and ftype != Type.VOID:
             return (self.evaluate_expression(expr), True)
-        # else, return none
-        return (Value(), True)
+        elif ftype != Type.VOID:
+            return_val=Value(ftype)#automatically creates the default value of it 
+            return (return_val,True)
+        
+        return # return for void functions
+
 
 
 
@@ -557,24 +634,6 @@ class Interpreter(InterpreterBase):
 
 
 
-    def determine_func_return_type(self, func:Element):
-        fname=func.get('name')
-        if fname=="main":
-            return Type.VOID
-        
-        ftype=fname[-1] #type:ignore Assume fname exists as long as parser worked, get last char 
-        if ftype=='i':
-            return Type.INT
-        if ftype=='s':
-            return Type.STRING
-        if ftype=='b':
-            return Type.BOOL
-        if ftype=='o':
-            return Type.OBJ
-        if ftype=='v':
-            return Type.VOID # MUST NOT RETURN VALUE
-    
-        super().error(ErrorType.TYPE_ERROR, "invalid funciton return type in name")
     
 
 
