@@ -5,20 +5,13 @@ from interpreterv1 import Interpreter
 program_source="""
 
 def main() {
-  var o;
-  o = @;
-  var io;
-  io = @;
-  var nested1o;
-  nested1o = @;
-  var nested2o;
-  nested2o = @;
-  
-  o.io = io;
-  o.io.nested1o = nested1o;
-  o.io.nested1o.nested2o = nested2o;
-  o.io.nested1o.nested2o.xi = 5;
-  print(o.io.nested1o.nested2o.xi);
+  var x;
+  x=true;
+
+  if (x){
+    bvar y;
+  }
+  bvar z;
 }
 
 """

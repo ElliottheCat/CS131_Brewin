@@ -58,13 +58,23 @@ class Environment:
         if self.exists(varname):
             return False
         top_env = self.env[-1]
-        top_env[0][varname] = Value(vartype)
+        top_env[0][varname] = Value(vartype) # index 0 is the functional variable list, others are block variable lists
         return True
+    
+    #define new var at block scope
+    def bdef(self, vartype,varname):
+        if self.exists(varname): 
+            return False
+        cur_block=self.env[-1][-1] # the last list in envicronment is the block scope we are in. this is true even if we only have the funtional scope left. 
+        cur_block[varname]=Value(vartype)
+        return True
+
 
     def exists(self, varname):
         for block in self.env[-1]:
             if varname in block:
-                return True
+                return True #
+        
         return False
 
     def get(self, varname):
@@ -197,9 +207,9 @@ class Interpreter(InterpreterBase):
             kind = statement.elem_type
 
             if kind == self.VAR_DEF_NODE:
-                self.var_def_statement(statement)
+                self.function_level_var_def_statement(statement)
             elif kind == "=":
-                self.assign_statement(statement)
+                self.function_level_assign_statement(statement)
             elif kind == self.FCALL_NODE:
                 self.func_call_statement(statement)
             elif kind == self.IF_NODE:
@@ -222,7 +232,7 @@ class Interpreter(InterpreterBase):
 
 
 
-    def var_def_statement(self, var:Element):
+    def function_level_var_def_statement(self, var:Element):
 
         var_name=var.get("name")
         var_type=self.determine_var_type(var)
@@ -230,16 +240,16 @@ class Interpreter(InterpreterBase):
             super().error(ErrorType.TYPE_ERROR, "variable type not defined")
         if not self.env.fdef(var_type, var_name):
             super().error(ErrorType.NAME_ERROR, "variable already defined")
-        
-    def var_val_type_match(self,name,value):
-        var_type=self.determine_var_type(name)# type:ignore
-        value_type=self.type_translation(value)
-        if not var_type == value_type:
-            super().error(ErrorType.NAME_ERROR, "variable type and value type doesn't match in assignemnt")
-            return False
-        return True
+    
+    def block_level_var_def_statement(self, var:Element):
+        var_name=var.get("name")
+        var_type=self.determine_var_type(var)
+        if var_type not in ['i','o','b','s']:
+            super().error(ErrorType.TYPE_ERROR, "variable type not defined")
+        if not self.env.bdef(var_type, var_name):
+            super().error(ErrorType.NAME_ERROR, "variable already defined")
 
-    def assign_statement(self, statement:Element):
+    def function_level_assign_statement(self, statement:Element):
         name = statement.get("var")
         value = self.evaluate_expression(statement.get("expression")) # type:ignore
         if not self.var_val_type_match(name,value):
@@ -266,6 +276,14 @@ class Interpreter(InterpreterBase):
 
         # else we exhausted all possible valid types
         super().error(ErrorType.TYPE_ERROR, "value type undefined, failed to translate")
+    
+    def var_val_type_match(self,name,value):
+        var_type=self.determine_var_type(name)# type:ignore
+        value_type=self.type_translation(value)
+        if not var_type == value_type:
+            super().error(ErrorType.NAME_ERROR, "variable type and value type doesn't match in assignemnt")
+            return False
+        return True
 
 
     def handle_input(self, fcall_name, args):
@@ -279,7 +297,7 @@ class Interpreter(InterpreterBase):
         res = super().get_input()
 
         return (
-            Value(Type.INT, int(res)) #type ignore
+            Value(Type.INT, int(res)) #type: ignore
             if fcall_name == "inputi"
             else Value(Type.STRING, res)
         )
@@ -310,12 +328,16 @@ class Interpreter(InterpreterBase):
             # else just compare normally
             return Value(Type.BOOL, tl == tr and vl_val == vr_val)
         if kind == "!=":
+            if vl.t==Type.OBJ:
+                result = tl == tr and vl_val is vr_val
+                # even for empty objects in Python, None is None evaluates to True.
+                return not result # NOT answer since we are evaluating for !=
+            # else just compare normally
             return Value(Type.BOOL, not (tl == tr and vl_val == vr_val))
 
         if tl == Type.STRING and tr == Type.STRING:
             if kind == "+":
                 return Value(Type.STRING, vl_val + vr_val)
-
         if tl == Type.INT and tr == Type.INT:
             if kind == "+":
                 return Value(Type.INT, vl_val + vr_val)
