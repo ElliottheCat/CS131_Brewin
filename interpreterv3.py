@@ -88,7 +88,7 @@ class Environment:
         if not self.exists(varname):
             return False
         top_env = self.env[-1]
-        for block in top_env:
+        for block in top_env: # checks all recursive lists
             if varname in block:
                 block[varname] = value
         return True
@@ -208,12 +208,14 @@ class Interpreter(InterpreterBase):
 
             if kind == self.VAR_DEF_NODE:
                 self.function_level_var_def_statement(statement)
+            elif kind==self.BVAR_DEF_NODE:
+                self.block_level_var_def_statement(statement)
             elif kind == "=":
-                self.function_level_assign_statement(statement)
+                self.variable_assign_statement(statement)
             elif kind == self.FCALL_NODE:
-                self.func_call_statement(statement)
+                self.run_func(statement)
             elif kind == self.IF_NODE:
-                res, ret = self.if_statement_execution(statement)
+                res, ret = self.if_s(statement)
                 if ret:
                     break
             elif kind == self.WHILE_NODE:
@@ -249,7 +251,7 @@ class Interpreter(InterpreterBase):
         if not self.env.bdef(var_type, var_name):
             super().error(ErrorType.NAME_ERROR, "variable already defined")
 
-    def function_level_assign_statement(self, statement:Element):
+    def variable_assign_statement(self, statement:Element):
         name = statement.get("var")
         value = self.evaluate_expression(statement.get("expression")) # type:ignore
         if not self.var_val_type_match(name,value):
@@ -271,8 +273,6 @@ class Interpreter(InterpreterBase):
             return Type.OBJ
         if type(val) == dict: # All OBJ are dictionaries!!! No funcitons
             return Type.OBJ
-        if val=='@':
-            return Type.OBJ # Or object references denoted by @
 
         # else we exhausted all possible valid types
         super().error(ErrorType.TYPE_ERROR, "value type undefined, failed to translate")
@@ -387,7 +387,8 @@ class Interpreter(InterpreterBase):
             return self.env.get(var_name)
 
         if kind == self.FCALL_NODE:
-            return self.run_func(expr)
+            rtr = self.run_func(expr)
+            return rtr # could be None
 
         if kind in self.bops:
             l, r = self.evaluate_expression(expr.get("op1")), self.evaluate_expression(expr.get("op2"))
@@ -406,11 +407,58 @@ class Interpreter(InterpreterBase):
                 return Value(Type.BOOL, not o.v)
 
             super().error(ErrorType.TYPE_ERROR, "cannot apply NOT to non-boolean")
+        
+
+        
+
 
         raise Exception("should not get here!")
 
     
 
+
+    def if_statement_execution(self, statement):
+        cond = self.evaluate_expression(statement.get("condition"))
+
+        if cond.t != Type.BOOL: #type:ignore
+            super().error(ErrorType.TYPE_ERROR, "condition must be boolean")
+
+        self.env.enter_block() 
+
+        res, ret = None, False
+
+        if cond.v: #type:ignore
+            # enter if body
+            res, ret = self.run_statements(statement.get("statements"))
+        elif statement.get("else_statements"):
+            #enter else statement if condition is false and exist else statement
+            res, ret = self.run_statements(statement.get("else_statements"))
+
+        self.env.exit_block()
+
+        return res, ret
+    
+
+    def while_statement_execution(self, statement:Element):
+        res, ret = None, False # we won;t use while in a expression evaluation anyways, returned value doesn't matter
+
+        while True:
+            cond = self.evaluate_expression(statement.get("condition")) # type:ignore
+            if cond.t != Type.BOOL: # type:ignore
+                super().error(ErrorType.TYPE_ERROR, "condition must be boolean")
+
+            if not cond.v: # type:ignore
+                # end loop if value is False
+                break
+
+            self.env.enter_block()
+            res, ret = self.run_statements(statement.get("statements"))
+            self.env.exit_block()
+            if ret:
+                break
+
+        return res, ret
+    
 
     def func_retval_type_match(self, funcname,retVal):
         """

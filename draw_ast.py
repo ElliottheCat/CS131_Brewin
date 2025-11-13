@@ -12,6 +12,8 @@ def main() {
     bvar y;
   }
   bvar z;
+  var r;
+  r = @;
 }
 
 """
