@@ -24,7 +24,7 @@ class Value:
             elif t == Type.BOOL:
                 self.v = False
             elif t == Type.OBJ:
-                self.v = None
+                self.v = {} # initialize to dictionary!!!
             elif t == Type.STRING:
                 self.v = ""
             else:
@@ -69,29 +69,81 @@ class Environment:
         cur_block[varname]=Value(vartype)
         return True
 
-
-    def exists(self, varname):
+    def recur_lookup(self, varname):
         for block in self.env[-1]:
             if varname in block:
-                return True #
-        
-        return False
-
-    def get(self, varname):
-        top_env = self.env[-1]
-        for block in top_env:
-            if varname in block:
-                return block[varname]
+                return block
         return None
 
-    def set(self, varname, value):
-        if not self.exists(varname):
+    def exists(self, varname):
+        dot_var=varname.split('.')
+        top_name=dot_var[0] # only keep tract of top level name in the environment. rest is in the library
+        target=self.recur_lookup(top_name)
+        if target is None:
+            return False # got nothing
+        
+
+        if len(dot_var)==1: #type:ignore not a recursive object
+            return True
+
+
+        obj_content=target[top_name] #type:ignore
+
+        for nest_var in dot_var[1:]:
+            # objects shouldn't be None since we should initialize it always, but I want this to be safe
+        if obj_content.t!=Type.OBJ or obj_content.v is None or nest_var not in obj_content:
+            # something is wrong witht he given name!
             return False
-        top_env = self.env[-1]
-        for block in top_env: # checks all recursive lists
-            if varname in block:
-                block[varname] = value
-        return True
+            
+        separate='.'
+        return self.exists(separate.join(dot_var[1:])) # passed the checks :)
+
+
+    def get(self, varname):
+        dot_var=varname.split('.')
+        top_name=dot_var[0] # only keep tract of top level name in the environment. rest is in the library
+        target=self.recur_lookup(top_name)
+        if target is None:
+            return False # nothing found
+        
+        value=target[top_name]
+
+        if len(dot_var)==1:
+            return value # no recursion, plain value, also the last level of objects
+        
+        obj_content = value
+        
+        nest_var=dot_var[1] # safe, we checked lenth of dot var earlier 
+        if obj_content.t != Type.OBJ or obj_content.v is None or nest_var not in obj_content:
+            return None
+        separate='.'
+        return self.get(separate.join(dot_var[1:]))
+        
+
+
+    def set(self, varname, value):
+        
+        # don't check for exist since it waste time. we will do it with set itself
+
+        dot_var=varname.split('.')
+        top_name=dot_var[0] # only keep tract of top level name in the environment. rest is in the library
+        target=self.recur_lookup(top_name)
+        if target is None:
+            return False # nothing found, top var name doesn't exits
+        
+        if len(dot_var)==1: # no recursion
+            # do type check in Interpreter! assume everything woerks 
+            target[dot_var]=value
+            return True
+        
+        obj_content = value
+
+        nest_var=dot_var[1] # safe, we checked lenth of dot var earlier 
+        if obj_content.t != Type.OBJ or obj_content.v is None or nest_var not in obj_content:
+            return False
+        separate='.'
+        return self.set(separate.join(dot_var[1:]),value)
+
 
 
 ###################################################################################################################################################################################################
@@ -181,11 +233,14 @@ class Interpreter(InterpreterBase):
             self.handle_print(args) # should return void if it's a print function!
             return 
 
-
-        func_def = self.get_function(fcall_name, len(args))
+        args_types=self.get_tuple_args_type(args)
+        # check if function exist
+        func_def = self.get_function(fcall_name, args_types) # based on name and types of arg
 
         formal_args = [a.get("name") for a in func_def.get("args")] #type:ignore
         actual_args = [self.evaluate_expression(a) for a in args]
+
+
 
         self.should_return=False# set the flag to false at begining
         last_func=self.cur_func
@@ -215,7 +270,7 @@ class Interpreter(InterpreterBase):
             elif kind == self.FCALL_NODE:
                 self.run_func(statement)
             elif kind == self.IF_NODE:
-                res, ret = self.if_s(statement)
+                res, ret = self.if_statement_execution(statement)
                 if ret:
                     break
             elif kind == self.WHILE_NODE:
@@ -260,6 +315,20 @@ class Interpreter(InterpreterBase):
             super().error(ErrorType.NAME_ERROR, "variable not defined")
         self.env.set(name, var_type,value) # type:ignore ignore possible non from get expression
 
+    def determine_var_type(self, var:Element):
+        varname=var.get('name')
+        vtype=varname[-1] #type:ignore
+        if vtype=='i':
+            return Type.INT
+        if vtype=='b':
+            return Type.BOOL
+        if vtype=='s':
+            return Type.STRING
+        if vtype=='o':
+            return Type.OBJ
+        
+        super().error(ErrorType.TYPE_ERROR, "invalid variable type in name")
+
     def type_translation(self, val): 
         if isinstance(val,Value):
             return val.t
@@ -269,8 +338,6 @@ class Interpreter(InterpreterBase):
             return Type.INT
         if type(val) == str:
             return Type.STRING
-        if val is None:
-            return Type.OBJ
         if type(val) == dict: # All OBJ are dictionaries!!! No funcitons
             return Type.OBJ
 
@@ -520,22 +587,4 @@ class Interpreter(InterpreterBase):
 
     
 
-
-
-    def determine_var_type(self, var:Element):
-        varname=var.get('name')
-        vtype=varname[-1] #type:ignore
-        if vtype=='i':
-            return Type.INT
-        if vtype=='b':
-            return Type.BOOL
-        if vtype=='s':
-            return Type.STRING
-        if vtype=='o':
-            return Type.OBJ
-        
-        super().error(ErrorType.TYPE_ERROR, "invalid variable type in name")
-
-
-    
 
