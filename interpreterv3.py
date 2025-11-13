@@ -1,12 +1,8 @@
 from intbase import InterpreterBase, ErrorType
 from brewparse import parse_program
-
 from typing import Optional, Dict, Any, Tuple
 from element import Element
-
-
 import enum
-
 
 class Type(enum.Enum):
     VOID = 0 # for function returns
@@ -15,11 +11,7 @@ class Type(enum.Enum):
     BOOL = 3
     OBJ = 4
 
-
-
 generate_image = True
-
-
 
 # NOTE: I am just using value None as nil in the project unless otherwise specified.
 
@@ -43,6 +35,7 @@ class Value:
             self.t = t
             self.v = v
 
+################################################################################################################################################################################################################
 
 class Environment:
     def __init__(self):
@@ -91,7 +84,7 @@ class Environment:
         return True
 
 
-
+###################################################################################################################################################################################################
 
 class Interpreter(InterpreterBase):
     def __init__(self, console_output: bool =True, inp:str|None = None, trace_output: bool=False):
@@ -104,20 +97,12 @@ class Interpreter(InterpreterBase):
         
         self.user_function_def : Dict[Tuple[str,Tuple[Type,...]],Element] = {} # (name, arg#): element.
 
-        self.cur_func=None
-        self.should_return=False
+        self.cur_func="main"
+        self.should_return=False # is this still useful???
 
-        self.integer_ops_bi = {"-", "/","*"} # NOTE: use // for integer division and truncation in python. 
+        # NOTE: use // for integer division and truncation in python. 
         # self.integer_ops_un = {"-"} # covered in NEG_NODE already!
-        self.integer_ops_com = {"<","<=",">",">="}
-
-        self.boolean_ops_bi = {"||","&&"}
-        self.boolean_ops_un ={"!"}
-
-
-        self.string_or_int_ops_bi= {"+"}
-
-        self.ops_com = {"==","!="}
+        self.bops = {"+", "-", "*", "/", "==", "!=", ">", ">=", "<", "<=", "||", "&&"}
         
 
 
@@ -137,10 +122,9 @@ class Interpreter(InterpreterBase):
 
         if main_func == None:
                 super().error(ErrorType.NAME_ERROR,f"No main() function was found")
-        
         else:
-            
             self.run_func(main_func)
+        
         
     def create_function_table(self, ast):
         self.user_function_def = {}
@@ -161,9 +145,6 @@ class Interpreter(InterpreterBase):
                 return super().error(ErrorType.NAME_ERROR,f"duplicate function with same name and parameters")
 
             self.user_function_def[(name,args_types)]=func # this also pushes main into the list
-
-
-            
         
     def get_tuple_args_type(self, args:list[Element]) -> Tuple[Type, ...]: # return variable length tuple
         args_type_list=()
@@ -316,113 +297,7 @@ class Interpreter(InterpreterBase):
         super().output(out)
         return #return void!
 
-    
-    def func_call_statement(self, statement_node:Element) -> None|Any: # function can return anything, or nothing
 
-        # reset return flag at the beginging of funciton calls
-        func_name=statement_node.get('name')
-        args=statement_node.get("args")
-
-        # by the AST tree graph and brista tests, all arguments should be in expression form; else -> NAME_ERROR
-        if func_name=='print':
-            # TODO: support int, string, boolean (true or false)
-            out = ""
-
-            for arg in args: #type: ignore
-                val= self.evaluate_expression(arg)
-                if type(val) is bool: # have to manually convert to the lowercase
-                    match val:
-                        case True:
-                            out += "true"
-                        case False:
-                            out += "false"
-                elif val == None:
-                    out+="nil" # must print nil
-                else:
-                    out += str(val)
-
-            super().output(out)
-
-            return None  # should return nil as the test cases defined
-
-        
-        elif func_name=='inputi':
-            if args: 
-                if len(args)>1:
-                    super().error(ErrorType.NAME_ERROR,f"No inputi() function found that takes > 1 parameter")
-                elif len(args)==1:
-                    strout=""
-                    for arg in args:
-                        strout=self.evaluate_expression(arg)
-                    super().output(strout)
-            # reuturn the input as a string using th e super class method
-            s= super().get_input()
-
-            if s:
-                return int (s) # Need to cast to int ourselves.
-            
-        elif func_name=='inputs':
-            if args: 
-                if len(args)>1:
-                    super().error(ErrorType.NAME_ERROR,f"No inputi() function found that takes > 1 parameter")
-                elif len(args)==1:
-                    strout=""
-                    for arg in args:
-                        strout=self.evaluate_expression(arg)
-                    super().output(strout)
-            # reuturn the input as a string using th e super class method
-            s= super().get_input()
-
-            if s:
-                return str (s) # I guess input is always a string so this coersion is unnecessary, but I want to make sure it fits the type.
-        elif (func_name, len(args)) in self.user_function_def: #type:ignore
-            # TODO: for user defined funciton, push new scope including passed in variables by value on to scope stack.
-            # entering user defined function, we need a new environment.
-            arg_len=len(args) #type:ignore
-            new_env=Environment()
-            called_func=self.user_function_def[(func_name, arg_len)]#type: ignore
-            
-            # evaluate teh variables to their values while we are still in the old scope. Else, we will have issues such as variable not defined if we evaluate it after entering the new funciton scope.
-            values=[]
-            for arg in args: #type:ignore
-                values.append(self.evaluate_expression(arg))
-
-            #enter new funciton scope
-            last_scope=self.scope
-            last_env=self.env
-            self.scope=(func_name, arg_len)
-            self.env=new_env
-
-            name_list=called_func.get('args')
-
-            for i in range(arg_len):
-                arg_name=name_list[i].get('name') #type:ignore 
-                # name_list[i] is a argument node!!!!! remember to use get name!
-                arg_val=values[i] #type:ignore
-                if not self.env.fdef(arg_name):
-                    super().error(ErrorType.NAME_ERROR, "variable already defined")
-                if not self.env.set(arg_name, arg_val):
-                    super().error(ErrorType.NAME_ERROR, "variable not defined")
-
-            # don't need scope stack if we are keeping track of the last scope
-            #self.scope_stack.append((func_name,arg_len,new_env)) #type:ignore
-
-            self.run_func(called_func)
-
-            self.scope=last_scope
-            self.env=last_env
-            
-            self.set_return = False # This keeps the function scope here! we don't end up returning outer function too!
-            if self.return_stack: #if there is anything to return
-                
-                return self.return_stack.pop()
-            else:
-                return None
-
-        #else log error for unknown functoin.
-
-        super().error(ErrorType.NAME_ERROR, f"Unknown function")
-    """This is my implementation, should delet it since it's bad and doesn't match up with the standard answers"""
 
     def evaluate_expression(self, expression_node:Element):
         kind = expression_node.elem_type
