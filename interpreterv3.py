@@ -297,167 +297,103 @@ class Interpreter(InterpreterBase):
         super().output(out)
         return #return void!
 
+    def eval_binary_op(self, kind, vl, vr):
+        """Evaluate binary operations"""
+        tl, tr = vl.t, vr.t
+        vl_val, vr_val = vl.v, vr.v
 
+        if kind == "==":
+            if vl.t==Type.OBJ:
+                result= tl == tr and vl_val is vr_val
+                # even for empty objects in Python, None is None evaluates to True.
+                return result
+            # else just compare normally
+            return Value(Type.BOOL, tl == tr and vl_val == vr_val)
+        if kind == "!=":
+            return Value(Type.BOOL, not (tl == tr and vl_val == vr_val))
 
-    def evaluate_expression(self, expression_node:Element):
-        kind = expression_node.elem_type
-        if kind==self.INT_NODE or kind == self.STRING_NODE or kind == self.BOOL_NODE:
-            return expression_node.get('val')
-        # for boolean node, self.dict has 'val' mapping to True or False (booleans print as true/false), parser already mapped the raw text to True or False!
-        
-        elif kind == self.NIL_NODE:
-            return None
-        
-        elif kind==self.QUALIFIED_NAME_NODE:
-            var_name=expression_node.get('name')
+        if tl == Type.STRING and tr == Type.STRING:
+            if kind == "+":
+                return Value(Type.STRING, vl_val + vr_val)
+
+        if tl == Type.INT and tr == Type.INT:
+            if kind == "+":
+                return Value(Type.INT, vl_val + vr_val)
+            if kind == "-":
+                return Value(Type.INT, vl_val - vr_val)
+            if kind == "*":
+                return Value(Type.INT, vl_val * vr_val)
+            if kind == "/":
+                return Value(Type.INT, vl_val // vr_val)
+            if kind == "<":
+                return Value(Type.BOOL, vl_val < vr_val)
+            if kind == "<=":
+                return Value(Type.BOOL, vl_val <= vr_val)
+            if kind == ">":
+                return Value(Type.BOOL, vl_val > vr_val)
+            if kind == ">=":
+                return Value(Type.BOOL, vl_val >= vr_val)
+
+        if tl == Type.BOOL and tr == Type.BOOL:
+            if kind == "&&":
+                return Value(Type.BOOL, vl_val and vr_val)
+            if kind == "||":
+                return Value(Type.BOOL, vl_val or vr_val)
+            
+        super().error(ErrorType.TYPE_ERROR, "invalid binary operation")
+
+    def evaluate_expression(self, expr):
+        kind = expr.elem_type 
+
+        if kind == self.INT_NODE:
+            return Value(Type.INT, expr.get("val"))
+
+        if kind == self.STRING_NODE:
+            return Value(Type.STRING, expr.get("val"))
+
+        if kind == self.BOOL_NODE:
+            return Value(Type.BOOL, expr.get("val"))
+
+        if kind == self.EMPTY_OBJ_NODE: # none
+            return Value(Type.OBJ, None)
+
+        if kind == self.QUALIFIED_NAME_NODE:
+            var_name = expr.get("name")
+
             if not self.env.exists(var_name):
                 super().error(ErrorType.NAME_ERROR, "variable not defined")
-            value = self.env.get(var_name) # shouldn't just check if it;s None!!!! nil is a value!!!!
-            
-                
-            return value #fetch variable from our dictionary
-        
-        elif kind == self.FCALL_NODE:
-            return self.func_call_statement(expression_node) #call function.
-        
-        elif kind == self.NEG_NODE:
-            op=self.evaluate_expression(expression_node.get('op1')) #type: ignore
-            if not isinstance(op,int):
-                super().error(ErrorType.TYPE_ERROR, f"int unary negation of non-integer")
-            return - op
-        
-        elif kind == self.NOT_NODE:#logical not
-            op=self.evaluate_expression(expression_node.get('op1')) #type: ignore
-            if type(op) is not bool:
-                super().error(ErrorType.TYPE_ERROR, f"bool unary negation of non-boolean")
+            return self.env.get(var_name)
 
-            return not op
-        
-        
-        elif kind in self.integer_ops_bi:
-            # This evealuation step automatically handles any nested functions or +/- such as (9+(7-8)) reflected in AST after parsing
-            
-            op1=self.evaluate_expression(expression_node.get('op1')) #type: ignore
-            op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
-            if ((not type(op1) is int) or (not type(op2) is int )): #f an expression attempts to operate on a string (e.g., 5 + "foo"), then your interpreter must generate an error
-                super().error(ErrorType.TYPE_ERROR, f"integer arithmitic on non integers")
-            
-            if kind == "-":
-                return op1 - op2
+        if kind == self.FCALL_NODE:
+            return self.run_func(expr)
 
-            elif kind == "/":
-                return op1 // op2
-            elif kind == "*":
-                return op1 * op2
-        
-        elif kind in self.string_or_int_ops_bi:
-            op1=self.evaluate_expression(expression_node.get('op1')) #type: ignore
-            op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
-            if (  not (type(op1) is int and type(op2) is int) ):
-                if ( not (isinstance(op1,str) and isinstance(op2,str)) ):
-                    super().error(ErrorType.TYPE_ERROR, f"add or concatenating non int and non string")
-            
-            #python + works the same for strign and int for our purposes
-            return op1+op2 #type: ignore
-        
-        elif kind in self.integer_ops_com:
-            op1=self.evaluate_expression(expression_node.get('op1')) #type: ignore
-            op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
-            if ((not type(op1) is int) or (not type(op2) is int )): # bool is subtype of int
-                super().error(ErrorType.TYPE_ERROR, f"integer comparison on non integers")
-            
-            match kind:
-                case "<":
-                    return op1 < op2
-                case ">":
-                    return op1 > op2
-                case "<=":
-                    return op1 <= op2
-                case ">=":
-                    return op1 >= op2
-            
-        elif kind in self.boolean_ops_bi:
-            op1=self.evaluate_expression(expression_node.get('op1')) #type: ignore
-            op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
-            if (not type(op1) is bool) or (not type(op2) is bool): 
-                super().error(ErrorType.TYPE_ERROR, f"bool binary on non booleans")
+        if kind in self.bops:
+            l, r = self.evaluate_expression(expr.get("op1")), self.evaluate_expression(expr.get("op2"))
+            return self.eval_binary_op(kind, l, r)
 
-            match kind: # use lazy evaluation 
-                case "&&":
-                    return op1 and op2
-                case "||":
-                    return op1 or op2
-        
-        elif kind in self.ops_com:
-            op1=self.evaluate_expression(expression_node.get('op1')) #type: ignore
-            op2=self.evaluate_expression(expression_node.get('op2')) #type: ignore
-            t1 = type(op1)
-            t2 = type(op2)
-            
-            equal=True
-            if op1 == None and op2==None: # just a special case I want to make sure it works
-                equal=True
-            elif op1 == None or op2==None: # everything not None is not equal to None 
-                equal = False
-            elif not t1 == t2:
-                equal = False
-            else:
-            # everything should be the same type at this point: 
-                equal = (op1 == op2)
+        if kind == self.NEG_NODE:
+            o = self.evaluate_expression(expr.get("op1"))
+            if o.t == Type.INT:
+                return Value(Type.INT, -o.v)
 
-            match kind:
-                case "==":
-                    return equal
-                case "!=":
-                    return not equal
-            
-        return
-    
-    def if_statement_execution(self, statement):
-        cond = self.evaluate_expression(statement.get("condition"))
+            super().error(ErrorType.TYPE_ERROR, "cannot negate non-integer")
 
-        if cond.t != Type.BOOL: #type:ignore
-            super().error(ErrorType.TYPE_ERROR, "condition must be boolean")
+        if kind == self.NOT_NODE:
+            o = self.evaluate_expression(expr.get("op1"))
+            if o.t == Type.BOOL:
+                return Value(Type.BOOL, not o.v)
 
-        self.env.enter_block() 
+            super().error(ErrorType.TYPE_ERROR, "cannot apply NOT to non-boolean")
 
-        res, ret = None, False
+        raise Exception("should not get here!")
 
-        if cond.v: #type:ignore
-            # enter if body
-            res, ret = self.run_statements(statement.get("statements"))
-        elif statement.get("else_statements"):
-            #enter else statement if condition is false and exist else statement
-            res, ret = self.run_statements(statement.get("else_statements"))
-
-        self.env.exit_block()
-
-        return res, ret
     
 
-    def while_statement_execution(self, statement:Element):
-        res, ret = Value(), False
 
-        while True:
-            cond = self.evaluate_expression(statement.get("condition")) # type:ignore
-            if cond.t != Type.BOOL: # type:ignore
-                super().error(ErrorType.TYPE_ERROR, "condition must be boolean")
-
-            if not cond.v: # type:ignore
-                # end loop if value is False
-                break
-
-            self.env.enter_block()
-            res, ret = self.run_statements(statement.get("statements"))
-            self.env.exit_block()
-            if ret:
-                break
-
-        return res, ret
-    
     def func_retval_type_match(self, funcname,retVal):
         """
-        Checks a funtionls return type, if it mathches a given value, and return the return type as well as teh comparing result."""
+        Checks a funtionls return type, if it mathches a given value, and return the return type as well as teh comparing result.
+        """
         ftype=funcname[-1] #type:ignore Assume fname exists as long as parser worked, get last char 
         f_rtr_type=Type.VOID # default
         if ftype=='i':
