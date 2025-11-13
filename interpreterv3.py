@@ -127,12 +127,8 @@ class Interpreter(InterpreterBase):
         #Only the statements inside main are executed in Project #1. no need to check for other funcitons 
         ### TODO: Update to hold the user defined functions inside self.function_def 
 
-        for func in ast.get('functions'):
-            # use name AND arg count as identification
-            name=func.get('name')
-            args=func.get('args')
-            args_types=self.get_tuple_args_type(args)
-            self.user_function_def[(name,args_types)]=func # this also pushes main into the list
+        
+        self.create_function_table(ast)
 
         if ("main",0) not in self.user_function_def:
             super().error(ErrorType.NAME_ERROR, f"main function not found")
@@ -148,15 +144,26 @@ class Interpreter(InterpreterBase):
         
     def create_function_table(self, ast):
         self.user_function_def = {}
-        for func in ast.get("functions"):
-            fname = func.get("name")
-            func_identity=(fname, self.get_tuple_args_type(func.get("args")))
-            if (func.get("name"), self.get_tuple_args_type(func.get("args"))) in self.user_function_def:
-                return super().error(ErrorType.NAME_ERROR,f"duplicate function with same parameters")
+
+        for func in ast.get('functions'):
+            # use name AND arg count as identification
+            name=func.get('name')
+            args=func.get('args')
+            args_types=self.get_tuple_args_type(args)
+
+            func_identity=(name, self.get_tuple_args_type(func.get("args")))
             
-            if fname[-1] not in ['i','o','b','s','v'] and fname != "main":
-                return super().error(ErrorType.NAME_ERROR,f"function return type not defined") # all function other than main have to declare return type as last char
-            self.user_function_def[func_identity] = func
+            if  (name != "main"):
+                if (name[-1] not in ['i','o','b','s','v']):
+                    return super().error(ErrorType.NAME_ERROR,f"function return type not defined") # all function other than main have to declare return type as last char
+
+            if func_identity in self.user_function_def:
+                return super().error(ErrorType.NAME_ERROR,f"duplicate function with same name and parameters")
+
+            self.user_function_def[(name,args_types)]=func # this also pushes main into the list
+
+
+            
         
     def get_tuple_args_type(self, args:list[Element]) -> Tuple[Type, ...]: # return variable length tuple
         args_type_list=()
@@ -199,7 +206,6 @@ class Interpreter(InterpreterBase):
         res, _ = self.run_statements(func_def.get("statements"))
         self.env.exit_func()
         self.cur_func=last_func
-        
         return res
     
 
@@ -217,20 +223,20 @@ class Interpreter(InterpreterBase):
                 self.func_call_statement(statement)
             elif kind == self.IF_NODE:
                 res, ret = self.if_statement_execution(statement)
-                if self.should_return:
+                if ret:
                     break
             elif kind == self.WHILE_NODE:
                 res, ret = self.while_statement_execution(statement)
-                if self.should_return:
+                if ret:
                     break
             elif kind == self.RETURN_NODE:
                 if self.type_translation(self.cur_func)!=Type.VOID:
                     res, ret = self.return_statement_execution(statement) #type:ignore
                     #must return something if current function is not void! 
                 else:
-                    self.should_return= True # res stays None
+                    ret= True # res stays None
                 break
-        
+
         return res, ret
 
 
@@ -544,10 +550,10 @@ class Interpreter(InterpreterBase):
 
         if cond.v: #type:ignore
             # enter if body
-            res, ret = self.__run_statements(statement.get("statements"))
+            res, ret = self.run_statements(statement.get("statements"))
         elif statement.get("else_statements"):
             #enter else statement if condition is false and exist else statement
-            res, ret = self.__run_statements(statement.get("else_statements"))
+            res, ret = self.run_statements(statement.get("else_statements"))
 
         self.env.exit_block()
 
@@ -609,8 +615,8 @@ class Interpreter(InterpreterBase):
             if ftype==Type.VOID or match == False:
                 super().error(ErrorType.TYPE_ERROR, "returning value from void functions OR return type doesn't match with return value")
             # else, we can return the results and set self.should_return to True
-            self.should_return=True
-            return rval
+
+            return (rval,True)
 
         self.should_return=True
         
@@ -618,22 +624,12 @@ class Interpreter(InterpreterBase):
         if ftype!=Type.VOID:
             return_val=Value(ftype)#automatically creates the default value of it 
             
-            return return_val
+            return (return_val,True)
         
-        return # return for void functions
+        return (None, True)# return for void functions
 
 
 
-
-        if rtr==None:
-            self.set_return=True
-            
-            return
-        else:
-            self.set_return=True
-            
-            self.return_stack.append(rtr)#type: ignore
-            return
     
     
 
