@@ -3,6 +3,10 @@ from interpreterv1 import Interpreter
 
 
 program_source="""
+def swapv(&ai, &bi) {
+  ai = bi;
+
+}
 
 def main() {
   var x;
@@ -16,6 +20,8 @@ def main() {
 
   r.q = @;
   r.q.r = 5;
+  print(x);
+  swapv(x,z);
 }
 
 """

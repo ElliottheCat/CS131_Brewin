@@ -42,6 +42,7 @@ class Value:
 ################################################################################################################################################################################################################
 
 # reference class for pass by reference
+# extra layer of abstraction
 class Ref:
     def __init__(self, value):
         self.value = value
@@ -274,18 +275,78 @@ class Interpreter(InterpreterBase):
         args_types=tuple(self.value_type_translation(v) for v in actual_args)
         # check if function exist
         func_def = self.get_function(fcall_name, args_types) # based on name and types of arg
-        formal_args = [a.get("name") for a in func_def.get("args")] #type:ignore
+        formal_elems=func_def.get("args")
+        formal_args = [a.get("name") for a in formal_elems] #type:ignore
         
 
+        # collect reference flags of the variables
+        byref_flags=[]
+        for e in formal_elems: #type: ignore
+            byref_flags.append(bool)(e.get("ref")) #type:ignore #'ref': boolean; True if declared with &, else False.
+        arg_is_variable = []  
+        arg_location = []
+
+        # locate the caller’s binding before we enter the callee’s frame.       
+        for a in args:
+            if a.elem_type == self.QUALIFIED_NAME_NODE: # make sure it's a variable
+                name=a.get("name")
+                dot_name_lst=name.split('.')
+                top_name=dot_name_lst[0]
+                value=self.env.recur_lookup(top_name)
+
+                if value is None:
+                    arg_is_variable.append(False)
+                    arg_location.append(None)
+                    continue # not found, go to next var
+                
+                if len(dot_name_lst) ==1:
+                    # top level variable, no obj recursiveness
+                    arg_is_variable.append(True)
+                    arg_location.append(("top",value,top_name)) # keep an note that his is top level
+                    continue
+                # now we have dotted varaible in argument. we need to find the most inner value's location
+                val=value[top_name]
+                ok = True
+                for part in dot_name_lst[1:-1]:
+                    if not isinstance(val,Value)  or val.t != Type.OBJ or val.v is None or part not in val.v:
+                        # check if all middle ones are objects, and contains the name list we want 
+                        ok = False
+                        break
+
+                    val = val.v[part] # type:ignore
+                if ok and isinstance(val,Value) and val.t == Type.OBJ and val.v is not None:
+                    # check if our bottom value is good
+                    last_field=dot_name_lst[-1]
+                    arg_is_variable.append(True)
+                    arg_location.append(("field",val,last_field)) # note down that this is a field of the obj
+                else:
+                    arg_is_variable.append(False) # invalid varaible!!!
+                    arg_location.append(None)
+                    
 
 
+
+                arg_is_variable.append(True)
+                arg_location.append((value,name))
+            else: # is object
+                arg_is_variable.append(False)
+                arg_location.append(None)
+
+        
         self.should_return=False# set the flag to false at begining
         last_func=self.cur_func
         self.cur_func=fcall_name # set current function's name so return knows what value to default to 
+
         self.env.enter_func()
 
-        for formal, actual in zip(formal_args, actual_args):
+
+        for i, (formal, actual) in enumerate(zip(formal_args, actual_args)): # enumerate returns a tuple of (index, item) for each iteration
             self.env.fdef(self.value_type_translation(actual),formal)
+            if byref_flags[i]:
+                # require reference
+                if not arg_is_variable[i] or arg_location[i] is None or arg_location[i][0] is None:
+                    super().error(ErrorType.TYPE_ERROR, "by referecnce arguments need to be a variable")
+                    
             self.env.set(formal, actual)
 
         res, _ = self.run_statements(func_def.get("statements"))
