@@ -151,7 +151,7 @@ class Environment:
             
         return True
 
-
+    ### You know, I realized after that to raise Fault errors, I have to do all the reference checkign IN MY INTERPRETER BODY SO ALL MY EFFORTS  TO HAVE AUTOMATIC ENVIRONMENT MANAGEMENT? HAHAHAHAHHAHAH GONE HAHAHAHAHHAHA AA HIOHAUAKHKUDKGHUGIAULWUKGKUGEAFEAF
     def get(self, varname):
         dot_var=varname.split('.')
         top_name=dot_var[0] # only keep tract of top level name in the environment. rest is in the library
@@ -502,24 +502,25 @@ class Interpreter(InterpreterBase):
         if len(dotted_names)==1: # name is dotted_name
             
             if not self.var_name_val_type_match(name,value):
-                super().error(ErrorType.NAME_ERROR, "variable type and value type doesn't match in assignemnt")
+                super().error(ErrorType.TYPE_ERROR, "variable type and value type doesn't match in assignemnt")
             if not self.env.set(name, value):
                 super().error(ErrorType.NAME_ERROR, "variable not defined")
             return # early return after succeeding, else return error 
         
         if self.var_name_type_translation(dotted_names[0])!=Type.OBJ: #check if first var name is object, if not, error out
-            super().error(ErrorType.NAME_ERROR, "top name not of obj type in dottted var")
+            super().error(ErrorType.TYPE_ERROR, "top name not of obj type in dottted var")
 
         for inter in dotted_names[1:-1]:# start at 1!
             # up until last name
             if self.var_name_type_translation(inter)!=Type.OBJ:
-                super().error(ErrorType.NAME_ERROR, "intermediate variable name not of obj type in dottted var")
+                super().error(ErrorType.TYPE_ERROR, "intermediate variable name not of obj type in dottted var")
         
         top_name=dotted_names[0]
         # else, check last field and the last name
         last_name=dotted_names[-1]
         if self.var_name_val_type_match(last_name,value):
             block = self.env.recur_lookup(top_name)
+            # This literally checks for all the erros I did in environemnt class, with Fault error takeen into account. We have to keep it here since only interpreter knows the super() error funciton. 
             if block is None:
                 super().error(ErrorType.NAME_ERROR, "variable not defined")
             cur_val=self.deref_to_value(block[top_name])
@@ -528,6 +529,7 @@ class Interpreter(InterpreterBase):
             if cur_val.v is None:
                 super().error(ErrorType.FAULT_ERROR, "nil dereference")
 
+            # follow does the refrence 
             for name in dotted_names[1:-1]:
                 fields = cur_val.v
                 if fields is None:
@@ -535,7 +537,7 @@ class Interpreter(InterpreterBase):
                 if name not in fields:
                     super().error(ErrorType.NAME_ERROR, "field not in obj")
 
-                next_val=fields[name]
+                next_val=fields[name] #type:ignore
                 if not isinstance(next_val, Value) or next_val.t!=Type.OBJ:
                     super().error(ErrorType.TYPE_ERROR, "intermidiate name not obj")
                 if next_val.v is None:
