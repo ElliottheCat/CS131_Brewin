@@ -138,7 +138,7 @@ class Environment:
             tag = value.value[0]
             if tag == "top":
                 # no recursive
-                loc, name=value.value[1], value.value[2] # second value is the Value obj held by reference
+                loc, name=value.value[1], value.value[2] # second value is the (tag, Value and location) held by reference
                 value = loc[name] # value held in the Value obj
                 # ok I realized how my name schemes is kinda dead but at this point i'm giving up
             else: # a field in obj
@@ -163,6 +163,22 @@ class Environment:
     def dict_set(self, obj_content:Value, name_list:list[str],value):
         # recursively find the obj until the last name, middle names should all end in o, and middle obj shoudl be of Type.OBJ
         cur_obj=obj_content
+
+        # handle reference type
+        if isinstance(cur_obj,Ref):
+            tag=cur_obj.value[0]
+            if tag=="top":
+                loc, name = cur_obj.value[1],cur_obj.value[2]
+                cur_obj=loc[name]
+            else: #fiedl
+                loc, field = cur_obj.value[1], cur_obj.value[2]
+                if loc.v is None:
+                    return False
+                cur_obj=loc.v.get(field)
+                if cur_obj is None:
+                    return False
+
+
         index=0
         n=len(name_list)
 
@@ -205,7 +221,7 @@ class Environment:
             if isinstance(cur, Ref):
                 tag = cur.value[0]
                 if tag == "top":
-                    loc, name=cur.value[1], cur.value[2] # second value is the Value obj held by reference
+                    loc, name=cur.value[1], cur.value[2] # second value is the tag, Value and location held by reference
                     loc[name]= value # assign value to the value Obj refered to inside reference
                 else:
                     loc, field = cur.value[1], cur.value[2]
@@ -664,7 +680,7 @@ class Interpreter(InterpreterBase):
                 if to_convert.t==Type.INT:
                     return to_convert
                 if to_convert.t == Type.BOOL:
-                    if to_convert:
+                    if to_convert.v:
                         return Value(Type.INT,1)
                     else:
                         return Value(Type.INT,0)
@@ -685,9 +701,14 @@ class Interpreter(InterpreterBase):
 
             # string
             if to_type == "str":
-                if to_convert == Type.STRING:
+                if to_convert.t == Type.STRING:
                     return to_convert
-                return Value(Type.STRING, str(to_convert)) # bool and int can be converted to string
+                if to_convert.t == Type.BOOL:
+                    if to_convert.v == True:
+                        return Value(Type.STRING,"true")
+                    else:
+                        return Value(Type.STRING,"false")
+                return Value(Type.STRING, str(to_convert)) # nt can be converted to string
             
             super().error(ErrorType.TYPE_ERROR, "invalid convert target type")
         
