@@ -25,7 +25,7 @@ class Value:
             elif t == Type.BOOL:
                 self.v = False
             elif t == Type.OBJ:
-                self.v = {} # initialize to dictionary!!!
+                self.v = None # initialize to dictionary!!!
             elif t == Type.STRING:
                 self.v = ""
             else:
@@ -38,6 +38,15 @@ class Value:
 
     def set_val(self, value):
         self.v=value
+
+################################################################################################################################################################################################################
+
+# reference class for pass by reference
+class Ref:
+    def __init__(self, value):
+        self.value = value
+
+
 
 ################################################################################################################################################################################################################
 
@@ -124,22 +133,22 @@ class Environment:
         return self.get(separate.join(dot_var[1:]))
         
 
-    def dict_set(self, obj:dict, name_list:list[str],value):
+    def dict_set(self, obj_content:dict, name_list:list[str],value):
         # recursively find the obj until the last name, middle names should all end in o, and middle obj shoudl be of Type.OBJ
         if len(name_list)==1:
             name=name_list[0]
-            obj[name]=value # sets or creates it whether it exists or not. 
+            obj_content[name]=value # sets or creates it whether it exists or not. 
             return True
-        #else we check if middle object exists
+        #else we check if middle object exists (MUST ALL exits!)
+        cur_obj=name_list[0]
+        if cur_obj in obj_content:
+            new_obj_content=obj_content[cur_obj]
+            return self.dict_set(new_obj_content,name_list[1:],value)
+        # intermediate obj not exist
+        return False
         
-
-        
-            
-        
-    def set(self, varname, value):
-        
+    def set(self, varname, value): # the varname and value type check is in interpreter. we only care avbotu assignment here. 
         # don't check for exist since it waste time. we will do it with set itself
-
         dot_var=varname.split('.')
         top_name=dot_var[0] # only keep tract of top level name in the environment. rest is in the library
         target=self.recur_lookup(top_name)
@@ -154,19 +163,7 @@ class Environment:
         # expect an obj
         obj_content = target[top_name]
 
-        nest_var=dot_var[1:] # safe, we checked lenth of dot var earlier 
-        # mannually go through it
-        for name,index in enumerate(nest_var, 1): # list, we could match it up with the index just like haskell zip
-            if obj_content.t != Type.OBJ or obj_content.v is None:
-                return False
-            if index == len(dot_var) - 1:
-                # the field we want to rewrite 
-                obj_content.v[name] = value
-                return True
-        
-
-        separate='.'
-        return self.set(separate.join(dot_var[1:]),value)
+        return self.dict_set(obj_content,dot_var[1:],value)
 
 
 
@@ -235,7 +232,7 @@ class Interpreter(InterpreterBase):
     def get_tuple_args_type(self, args:list[Element]) -> Tuple[Type, ...]: # return variable length tuple
         args_type_list=()
         for arg in args:
-            arg_type=self.determine_var_type(arg)
+            arg_type=self.determine_var_name_type(arg)
             args_type_list=args_type_list+(arg_type,)
 
         return args_type_list
@@ -315,7 +312,7 @@ class Interpreter(InterpreterBase):
 
     def function_level_var_def_statement(self, var:Element):
         var_name=var.get("name")
-        var_type=self.determine_var_type(var)
+        var_type=self.determine_var_name_type(var)
         if var_type not in {Type.INT, Type.BOOL, Type.STRING, Type.OBJ}:
             super().error(ErrorType.TYPE_ERROR, "variable type not defined")
         if not self.env.fdef(var_type, var_name):
@@ -323,7 +320,7 @@ class Interpreter(InterpreterBase):
     
     def block_level_var_def_statement(self, var:Element):
         var_name=var.get("name")
-        var_type=self.determine_var_type(var)
+        var_type=self.determine_var_name_type(var)
         if var_type not in {Type.INT, Type.BOOL, Type.STRING, Type.OBJ}:
             super().error(ErrorType.TYPE_ERROR, "variable type not defined")
         if not self.env.bdef(var_type, var_name):
@@ -333,32 +330,41 @@ class Interpreter(InterpreterBase):
         # Two cases: nornal or object (dotted)
         # By the spec: All intermediate segments must exist and be o‑typed.
 
-
         name = statement.get("var")
-        dotted_name=name.('.') #type:ignore
-        if len(dotted_name==1): # name is dotted_name
-            value = self.evaluate_expression(statement.get("expression")) # type:ignore
+
+        # return Value Obj!!!
+        value = self.evaluate_expression(statement.get("expression")) # type:ignore
+
+        # only need to check the last char for the ultimate type. 
+        var_type=self.determine_var_name_type(name) # type:ignore
+        
+
+        dotted_names=name.split('.') #type:ignore
+
+        if len(dotted_names)==1: # name is dotted_name
+            
             if not self.var_val_type_match(name,value):
                 super().error(ErrorType.NAME_ERROR, "variable type and value type doesn't match in assignemnt")
             if not self.env.set(name, value):
                 super().error(ErrorType.NAME_ERROR, "variable not defined")
-            self.env.set(name, var_type,value) # type:ignore ignore possible non from get expression
+            self.env.set(name, value) # type:ignore ignore possible non from get expression
         
-        elif self.determine_var_type(dotted_name[0])==Type.OBJ: #check if first var name is object, if not, error out
-            for inter in dotted_name[:-1]:
+        elif self.determine_var_name_type(dotted_names[0])==Type.OBJ: #check if first var name is object, if not, error out
+            for inter in dotted_names[:-1]:
                 # up until last name
-                if self.determine_var_type(inter)!=Type.OBJ:
+                if self.determine_var_name_type(inter)!=Type.OBJ:
                     super().error(ErrorType.NAME_ERROR, "intermediate variable name not of obj type in dottted var")
-            
+                
             # else, check last field and the last name
-            last_name=dotted_name[-1]
-
+            last_name=dotted_names[-1]
+            if self.var_val_type_match(last_name,value):
+                self.env.set(name, value) # type:ignore ignore possible non from get expression
                 
         super().error(ErrorType.NAME_ERROR, "varable name illegal for assignment")
 
 
 
-    def determine_var_type(self, var:Element):
+    def determine_var_name_type(self, var:Element):
         varname=var.get('name')
         vtype=varname[-1] #type:ignore
         if vtype=='i':
@@ -390,7 +396,7 @@ class Interpreter(InterpreterBase):
         super().error(ErrorType.TYPE_ERROR, "value type undefined, failed to translate")
     
     def var_val_type_match(self,name,value):
-        var_type=self.determine_var_type(name)# type:ignore
+        var_type=self.determine_var_name_type(name)# type:ignore
         value_type=self.type_translation(value)
         if not var_type == value_type:
             super().error(ErrorType.NAME_ERROR, "variable type and value type doesn't match in assignemnt")
@@ -489,7 +495,7 @@ class Interpreter(InterpreterBase):
             return Value(Type.BOOL, expr.get("val"))
 
         if kind == self.EMPTY_OBJ_NODE: # none
-            return Value(Type.OBJ, None)
+            return Value(Type.OBJ, {})
 
         if kind == self.QUALIFIED_NAME_NODE:
             var_name = expr.get("name") # possibly dotted
@@ -523,6 +529,7 @@ class Interpreter(InterpreterBase):
         if kind == self.CONVERT_NODE:
             to_type=expr.get("to_type") #one of int, bool, str
             to_convert=expr.get("expr")
+            
 
 
         
