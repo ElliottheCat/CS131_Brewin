@@ -164,6 +164,7 @@ class Environment:
         cur_obj=obj_content
 
         # handle reference type
+        # same logic as in get and set 
         if isinstance(cur_obj,Ref):
             tag=cur_obj.value[0]
             if tag=="top":
@@ -338,8 +339,8 @@ class Interpreter(InterpreterBase):
         byref_flags=[]
         for e in formal_elems: #type: ignore
             byref_flags.append(bool(e.get("ref")) )#type:ignore #'ref': boolean; True if declared with &, else False.
-        arg_is_variable = []  
-        arg_location = []
+        arg_is_variable = []  # if we can leagally pass by reference
+        arg_location = [] # waht value it's refering to in case we want to pass by reference
 
         # locate the caller’s binding before we enter the callee’s frame.       
         for a in args:
@@ -640,6 +641,11 @@ class Interpreter(InterpreterBase):
 
         if kind == self.EMPTY_OBJ_NODE: # none
             return Value(Type.OBJ, {})
+
+        if kind == self.NIL_NODE: 
+            # jsut incase Nil nodes are still here. my nil handling is failing for some reason.
+            return Value(Type.OBJ, None)
+
 
         if kind == self.QUALIFIED_NAME_NODE:
             var_name = expr.get("name") # possibly dotted
