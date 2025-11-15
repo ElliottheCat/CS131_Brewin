@@ -584,17 +584,17 @@ class Interpreter(InterpreterBase):
         vl_val, vr_val = vl.v, vr.v
 
         if kind == "==":
-            if vl.t==Type.OBJ:
-                result= tl == tr and vl_val is vr_val
+            if vl.t==Type.OBJ and tr == Type.OBJ:
+                result= (vl_val is vr_val)
                 # even for empty objects in Python, None is None evaluates to True.
-                return result
+                return Value(Type.BOOL, result) # should return Value object!
             # else just compare normally
             return Value(Type.BOOL, tl == tr and vl_val == vr_val)
         if kind == "!=":
-            if vl.t==Type.OBJ:
-                result = tl == tr and vl_val is vr_val
+            if vl.t==Type.OBJ and tr == Type.OBJ:
+                result = (vl_val is vr_val)
                 # even for empty objects in Python, None is None evaluates to True.
-                return not result # NOT answer since we are evaluating for !=
+                return Value(Type.BOOL, not result) # NOT answer since we are evaluating for !=
             # else just compare normally
             return Value(Type.BOOL, not (tl == tr and vl_val == vr_val))
 
