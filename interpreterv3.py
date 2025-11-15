@@ -657,7 +657,7 @@ class Interpreter(InterpreterBase):
 
         if kind == self.CONVERT_NODE:
             to_type=expr.get("to_type") #one of int, bool, str
-            to_convert=expr.get("expr")
+            to_convert=self.evaluate_expression(expr.get("expr"))
 
             # int conversinot
             if to_type == "int":
