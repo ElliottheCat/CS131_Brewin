@@ -765,13 +765,12 @@ class Interpreter(InterpreterBase):
 
         return res, ret
     
+    def get_func_return_type(self, funcname):
 
-    def func_retval_type_match(self, funcname,retVal):
-        """
-        Checks a funtionls return type, if it mathches a given value, and return the return type as well as teh comparing result.
-        """
+        if funcname == "main": # always return void!
+            return Type.VOID
+        
         ftype=funcname[-1] #type:ignore Assume fname exists as long as parser worked, get last char 
-        f_rtr_type=Type.VOID # default
         if ftype=='i' : # also consider inputi
             f_rtr_type= Type.INT
         elif ftype=='s': # also consider inputs
@@ -780,10 +779,15 @@ class Interpreter(InterpreterBase):
             f_rtr_type= Type.BOOL
         elif ftype=='o':
             f_rtr_type= Type.OBJ
-        elif ftype=='v' or funcname=="main": # don't falsely reject main
+        elif ftype=='v': # don't falsely reject main
             f_rtr_type= Type.VOID # MUST NOT RETURN VALUE
-        else:
-            super().error(ErrorType.TYPE_ERROR, "invalid funciton return type in name") # should enver reach hear after initial screenign in loading functions
+        
+        super().error(ErrorType.TYPE_ERROR, "invalid funciton return type in name") # should enver reach hear after initial screenign in loading functions
+
+    def func_retval_type_match(self, funcname,retVal):
+        #Checks a funtionls return type, if it mathches a given value, and return the return type as well as teh comparing result.
+        
+        f_rtr_type=self.get_func_return_type(funcname)
 
         ret_val_type=self.value_type_translation(retVal)
         if f_rtr_type==ret_val_type:
