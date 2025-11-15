@@ -432,14 +432,12 @@ class Interpreter(InterpreterBase):
                 if ret:
                     break
             elif kind == self.RETURN_NODE:
-                if self.value_type_translation(self.cur_func)!=Type.VOID:
-                    res, ret = self.return_statement_execution(statement) #type:ignore
-                    #must return something if current function is not void! 
-                else:
-                    ret= True # res stays None
+                # all logicst are handled inside teh return block
+                res, ret = self.return_statement_execution(statement) 
                 break
+        
 
-        return res, ret
+        
 
 
 
@@ -772,23 +770,21 @@ class Interpreter(InterpreterBase):
         
         ftype=funcname[-1] #type:ignore Assume fname exists as long as parser worked, get last char 
         if ftype=='i' : # also consider inputi
-            f_rtr_type= Type.INT
+            return Type.INT
         elif ftype=='s': # also consider inputs
-            f_rtr_type= Type.STRING
+            return Type.STRING
         elif ftype=='b':
-            f_rtr_type= Type.BOOL
+            return Type.BOOL
         elif ftype=='o':
-            f_rtr_type= Type.OBJ
+            return Type.OBJ
         elif ftype=='v': # don't falsely reject main
-            f_rtr_type= Type.VOID # MUST NOT RETURN VALUE
+            return Type.VOID # MUST NOT RETURN VALUE
         
         super().error(ErrorType.TYPE_ERROR, "invalid funciton return type in name") # should enver reach hear after initial screenign in loading functions
 
     def func_retval_type_match(self, funcname,retVal):
         #Checks a funtionls return type, if it mathches a given value, and return the return type as well as teh comparing result.
-        
         f_rtr_type=self.get_func_return_type(funcname)
-
         ret_val_type=self.value_type_translation(retVal)
         if f_rtr_type==ret_val_type:
             return (f_rtr_type,True)
@@ -798,18 +794,28 @@ class Interpreter(InterpreterBase):
 
     def return_statement_execution(self, statement):
         expr = statement.get("expression")
+        ftype=self.get_func_return_type(self.cur_func) # get type
         if expr:
+            # return expr
             rval=self.evaluate_expression(expr)
-            ftype,match=self.func_retval_type_match(self.cur_func,rval) #type:ignore Assume fname exists as long as parser worked, get last char 
-            if ftype==Type.VOID or match == False:
-                super().error(ErrorType.TYPE_ERROR, "returning value from void functions OR return type doesn't match with return value")
+            val_type=self.value_type_translation(rval)
+
+            # check for voidness and type match
+            if ftype == Type.VOID:
+                # should never be here!!!
+                super().error(ErrorType.TYPE_ERROR, "returning value from void functions ")
+            if val_type != ftype:
+                super().error(ErrorType.TYPE_ERROR, "return type doesn't match with return value")
+
             # else, we can return the results and set self.should_return to True
             return (rval,True)
-        self.should_return=True
-        ftype, _ =self.func_retval_type_match(self.cur_func,0) # doens't care if match or not
-        if ftype!=Type.VOID:
-            return_val=Value(ftype)#automatically creates the default value of it 
-            return (return_val,True)
+        
+        if ftype == Type.VOID:
+            # return nothign
+            return (None,True)
+        
+        # Should return default type if no value!!!!!
+        return (Value(ftype), True)
         return (None, True)# return for void functions
 
 
