@@ -104,12 +104,12 @@ class Environment:
 
         nest_var=dot_var[1] # safe, we checked lenth of dot var earlier 
 
-        if obj_content.t!=Type.OBJ or obj_content.v is None or nest_var not in obj_content:
-            # something is wrong witht he given name!
-            return False
-            
-        separate='.'
-        return self.exists(separate.join(dot_var[1:])) # passed the checks :)
+        cur_o = obj_content
+        for name in dot_var[1:]:
+            if cur_o.t != Type.OBJ or cur_o.v is None or name not in cur_o.v:
+                return False
+            cur_o=cur_o.v[name] # next layer
+        return True
 
 
     def get(self, varname):
@@ -282,7 +282,7 @@ class Interpreter(InterpreterBase):
         for formal, actual in zip(formal_args, actual_args):
             self.env.fdef(self.value_type_translation(actual),formal)
             self.env.set(formal, actual)
-            
+
         res, _ = self.run_statements(func_def.get("statements"))
         self.env.exit_func()
         self.cur_func=last_func
