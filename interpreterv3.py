@@ -658,9 +658,38 @@ class Interpreter(InterpreterBase):
         if kind == self.CONVERT_NODE:
             to_type=expr.get("to_type") #one of int, bool, str
             to_convert=expr.get("expr")
+
+            # int conversinot
+            if to_type == "int":
+                if to_convert.t==Type.INT:
+                    return to_convert
+                if to_convert.t == Type.BOOL:
+                    if to_convert:
+                        return Value(Type.INT,1)
+                    else:
+                        return Value(Type.INT,0)
+                    
+                if to_convert==Type.STRING:
+                    super().error(ErrorType.TYPE_ERROR, "cannot convert string to int")
+                super().error(ErrorType.TYPE_ERROR, "invalid int conversion")
+
+            # Bool
+            if to_type == "bool":
+                if to_convert.t ==Type.BOOL:
+                    return to_convert
+                if to_convert.t == Type.INT:
+                    return Value(Type.BOOL, to_convert.v != 0)
+                if to_convert.t==Type.STRING:
+                    return Value(Type.BOOL, len(to_convert.v) != 0) # I assume it would wrok as python 
+                super().error(ErrorType.TYPE_ERROR, "invalid bool conversion")
+
+            # string
+            if to_type == "str":
+                if to_convert == Type.STRING:
+                    return to_convert
+                return Value(Type.STRING, str(to_convert)) # bool and int can be converted to string
             
-
-
+            super().error(ErrorType.TYPE_ERROR, "invalid convert target type")
         
 
         raise Exception("should not get here!!!!")
