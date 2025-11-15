@@ -14,7 +14,8 @@ class Type(enum.Enum):
 generate_image = True
 
 # NOTE: I am just using value None as nil in the project unless otherwise specified.
-
+# define heleper that always clones
+# flag: if there is a reference and return object reference. else return deepcopy 
 class Value:
     def __init__(self, t, v=None):
         if v is None:
@@ -34,6 +35,9 @@ class Value:
         else:
             self.t = t
             self.v = v
+
+    def set_val(self, value):
+        self.v=value
 
 ################################################################################################################################################################################################################
 
@@ -89,8 +93,8 @@ class Environment:
 
         obj_content=target[top_name] #type:ignore
 
-        for nest_var in dot_var[1:]:
-            # objects shouldn't be None since we should initialize it always, but I want this to be safe
+        nest_var=dot_var[1] # safe, we checked lenth of dot var earlier 
+
         if obj_content.t!=Type.OBJ or obj_content.v is None or nest_var not in obj_content:
             # something is wrong witht he given name!
             return False
@@ -177,7 +181,7 @@ class Interpreter(InterpreterBase):
         
         self.create_function_table(ast)
 
-        if ("main",0) not in self.user_function_def:
+        if ("main",()) not in self.user_function_def:
             super().error(ErrorType.NAME_ERROR, f"main function not found")
 
         main_func= self.user_function_def[("main",())]
@@ -290,7 +294,6 @@ class Interpreter(InterpreterBase):
 
 
     def function_level_var_def_statement(self, var:Element):
-
         var_name=var.get("name")
         var_type=self.determine_var_type(var)
         if var_type not in ['i','o','b','s']:
@@ -314,6 +317,8 @@ class Interpreter(InterpreterBase):
         if not self.env.set(name, value):
             super().error(ErrorType.NAME_ERROR, "variable not defined")
         self.env.set(name, var_type,value) # type:ignore ignore possible non from get expression
+
+
 
     def determine_var_type(self, var:Element):
         varname=var.get('name')
@@ -340,6 +345,8 @@ class Interpreter(InterpreterBase):
             return Type.STRING
         if type(val) == dict: # All OBJ are dictionaries!!! No funcitons
             return Type.OBJ
+        if type(val) == None:
+            return Type.VOID
 
         # else we exhausted all possible valid types
         super().error(ErrorType.TYPE_ERROR, "value type undefined, failed to translate")
@@ -447,7 +454,7 @@ class Interpreter(InterpreterBase):
             return Value(Type.OBJ, None)
 
         if kind == self.QUALIFIED_NAME_NODE:
-            var_name = expr.get("name")
+            var_name = expr.get("name") # possibly dotted
 
             if not self.env.exists(var_name):
                 super().error(ErrorType.NAME_ERROR, "variable not defined")
@@ -474,12 +481,14 @@ class Interpreter(InterpreterBase):
                 return Value(Type.BOOL, not o.v)
 
             super().error(ErrorType.TYPE_ERROR, "cannot apply NOT to non-boolean")
-        
+
+        if kind == self.CONVERT_NODE:
+            to_type=expr.get("dict")["to_type"] #one of int, bool, str
+            to_convert=expr.get("dict")["expr"]
 
         
 
-
-        raise Exception("should not get here!")
+        raise Exception("should not get here!!!!")
 
     
 
@@ -533,15 +542,15 @@ class Interpreter(InterpreterBase):
         """
         ftype=funcname[-1] #type:ignore Assume fname exists as long as parser worked, get last char 
         f_rtr_type=Type.VOID # default
-        if ftype=='i':
+        if ftype=='i' : # also consider inputi
             f_rtr_type= Type.INT
-        elif ftype=='s':
+        elif ftype=='s': # also consider inputs
             f_rtr_type= Type.STRING
         elif ftype=='b':
             f_rtr_type= Type.BOOL
         elif ftype=='o':
             f_rtr_type= Type.OBJ
-        elif ftype=='v':
+        elif ftype=='v' or funcname=="main": # don't falsely reject main
             f_rtr_type= Type.VOID # MUST NOT RETURN VALUE
         else:
             super().error(ErrorType.TYPE_ERROR, "invalid funciton return type in name") # should enver reach hear after initial screenign in loading functions
@@ -555,25 +564,18 @@ class Interpreter(InterpreterBase):
 
     def return_statement_execution(self, statement):
         expr = statement.get("expression")
-        
-        
         if expr:
             rval=self.evaluate_expression(expr)
             ftype,match=self.func_retval_type_match(self.cur_func,rval) #type:ignore Assume fname exists as long as parser worked, get last char 
             if ftype==Type.VOID or match == False:
                 super().error(ErrorType.TYPE_ERROR, "returning value from void functions OR return type doesn't match with return value")
             # else, we can return the results and set self.should_return to True
-
             return (rval,True)
-
         self.should_return=True
-        
         ftype, _ =self.func_retval_type_match(self.cur_func,0) # doens't care if match or not
         if ftype!=Type.VOID:
             return_val=Value(ftype)#automatically creates the default value of it 
-            
             return (return_val,True)
-        
         return (None, True)# return for void functions
 
 
