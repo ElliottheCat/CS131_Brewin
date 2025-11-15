@@ -102,6 +102,20 @@ class Environment:
 
         obj_content=target[top_name] #type:ignore
 
+        if isinstance(obj_content,Ref):
+            tag=obj_content.value[0] # get tag
+            if tag == "top":
+                loc, name=obj_content.value[1], obj_content.value[2] # value is the Value obj held by reference
+                value = loc[name] # value held in the Value obj
+            else: # is a field of obj
+                loc, name=obj_content.value[1], obj_content.value[2] # second value is the Value obj held by reference
+                if loc.v is None:
+                    obj_content=None
+                else:
+                    obj_content=loc.v.get(name) 
+                if obj_content is None:
+                    return False # doesn't exist
+
         nest_var=dot_var[1] # safe, we checked lenth of dot var earlier 
 
         cur_o = obj_content
