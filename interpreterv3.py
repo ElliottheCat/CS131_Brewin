@@ -246,15 +246,10 @@ class Environment:
             
             cur = target[top_name]
             if isinstance(cur, Ref):
-                tag = cur.value[0]
-                if tag == "top":
-                    loc, name=cur.value[1], cur.value[2] # second value is the tag, Value and location held by reference
-                    loc[name]= value # assign value to the value Obj refered to inside reference
-                else:
-                    loc, field = cur.value[1], cur.value[2]
-                    if loc.v is None:
-                        return False # the value obj is nil
-                    loc.v[field]=value # assgin value to the Value obj
+                loc, name=self.ref_target_resolver(cur)
+                if loc is None:
+                    return False
+                loc[name]=value # assign the value to where it's refrencing
             else: # not referenced
                 target[top_name] = value
             return True # no recursion, plain value, also the last level of objects
@@ -528,6 +523,34 @@ class Interpreter(InterpreterBase):
                 return 
         super().error(ErrorType.NAME_ERROR, "varable name illegal for assignment")
 
+
+    # for reference chain tests:
+    def deref_to_value(self, ref):
+        v = ref
+        while isinstance(v,Ref): # follwo the reference cahin until bottm
+            tag, loc, name = v.value
+            if tag == "top":
+                if name not in loc:
+                    super().error(ErrorType.NAME_ERROR, "variable not found")
+                v = loc[name]
+            else: #field of an obj
+                if not isinstance(loc,Value) or loc.t != Type.OBJ:
+                    super().error(ErrorType.TYPE_ERROR, "illegal to have field of non objects")
+                if loc.v is None:
+                    super().error(ErrorType.FAULT_ERROR, "dereferenced Nil ptr")
+                    # Fault error on spec
+                if name not in loc.v:
+                    super().error(ErrorType.NAME_ERROR,"field not found")
+                v = loc.v[name] #type:ignore
+
+        if not isinstance(v,Value):
+            super().error(ErrorType.TYPE_ERROR, "bottom referecne target should be a Value!")
+
+        return v
+            
+
+    def eval_qname(self,name):
+        
 
 
     def var_element_type_translation(self, var:Element):
