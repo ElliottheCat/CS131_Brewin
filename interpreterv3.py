@@ -490,13 +490,10 @@ class Interpreter(InterpreterBase):
     def variable_assign_statement(self, statement:Element):
         # Two cases: nornal or object (dotted)
         # By the spec: All intermediate segments must exist and be o‑typed.
-
         name = statement.get("var")
         # return Value Obj!!!
         value = self.evaluate_expression(statement.get("expression")) # type:ignore
-
         # only need to check the last char for the ultimate type. 
-        
         dotted_names=name.split('.') #type:ignore
 
         if len(dotted_names)==1: # name is dotted_name
@@ -948,7 +945,7 @@ class Interpreter(InterpreterBase):
 
 
     
-    
+# AND FINALLY I"M FREEEEEEEEEEEEEE
 
 
 
