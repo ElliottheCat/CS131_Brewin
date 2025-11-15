@@ -44,7 +44,7 @@ class Value:
 # reference class for pass by reference
 # extra layer of abstraction
 class Ref:
-    def __init__(self, value):
+    def __init__(self, value): # value: tag, location, name of variable
         self.value = value
 
 
@@ -98,7 +98,6 @@ class Environment:
 
         if len(dot_var)==1: #type:ignore not a recursive object
             return True
-
 
         obj_content=target[top_name] #type:ignore
 
@@ -708,7 +707,7 @@ class Interpreter(InterpreterBase):
                         return Value(Type.STRING,"true")
                     else:
                         return Value(Type.STRING,"false")
-                return Value(Type.STRING, str(to_convert)) # nt can be converted to string
+                return Value(Type.STRING, str(to_convert.v)) # nt can be converted to string
             
             super().error(ErrorType.TYPE_ERROR, "invalid convert target type")
         
