@@ -269,12 +269,13 @@ class Interpreter(InterpreterBase):
             self.handle_print(args) # should return void if it's a print function!
             return 
 
-        args_types=self.get_tuple_args_type(args)
+        actual_args = [self.evaluate_expression(a) for a in args]
+        # now get type of arguments to match with fucntions!!! we are using Ad hoc poly funcitons1!!!
+        args_types=tuple(self.value_type_translation(v) for v in actual_args)
         # check if function exist
         func_def = self.get_function(fcall_name, args_types) # based on name and types of arg
-
         formal_args = [a.get("name") for a in func_def.get("args")] #type:ignore
-        actual_args = [self.evaluate_expression(a) for a in args]
+        
 
 
 
