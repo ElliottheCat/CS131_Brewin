@@ -296,7 +296,7 @@ class Interpreter(InterpreterBase):
     def function_level_var_def_statement(self, var:Element):
         var_name=var.get("name")
         var_type=self.determine_var_type(var)
-        if var_type not in ['i','o','b','s']:
+        if var_type not in {Type.INT, Type.BOOL, Type.STRING, Type.OBJ}:
             super().error(ErrorType.TYPE_ERROR, "variable type not defined")
         if not self.env.fdef(var_type, var_name):
             super().error(ErrorType.NAME_ERROR, "variable already defined")
@@ -304,7 +304,7 @@ class Interpreter(InterpreterBase):
     def block_level_var_def_statement(self, var:Element):
         var_name=var.get("name")
         var_type=self.determine_var_type(var)
-        if var_type not in ['i','o','b','s']:
+        if var_type not in {Type.INT, Type.BOOL, Type.STRING, Type.OBJ}:
             super().error(ErrorType.TYPE_ERROR, "variable type not defined")
         if not self.env.bdef(var_type, var_name):
             super().error(ErrorType.NAME_ERROR, "variable already defined")
@@ -483,8 +483,9 @@ class Interpreter(InterpreterBase):
             super().error(ErrorType.TYPE_ERROR, "cannot apply NOT to non-boolean")
 
         if kind == self.CONVERT_NODE:
-            to_type=expr.get("dict")["to_type"] #one of int, bool, str
-            to_convert=expr.get("dict")["expr"]
+            to_type=expr.get("to_type") #one of int, bool, str
+            to_convert=expr.get("expr")
+
 
         
 
