@@ -120,9 +120,11 @@ class Environment:
 
         cur_o = obj_content
         for name in dot_var[1:]:
-            if cur_o.t != Type.OBJ or cur_o.v is None or name not in cur_o.v:
+            if cur_o.t != Type.OBJ or cur_o.v is None or name not in cur_o.v: # type:ignore
                 return False
-            cur_o=cur_o.v[name] # next layer
+            #next layer
+            cur_o=cur_o.v[name] # type: ignore 
+            
         return True
 
 
@@ -201,7 +203,20 @@ class Environment:
         if len(dot_var)==1: # no recursion
             # do type check in Interpreter! assume everything woerks 
             target[top_name]=value
-            return True
+            cur = target[top_name]
+            if isinstance(cur, Ref):
+                tag = cur.value[0]
+                if tag == "top":
+                    loc, name=cur.value[1], cur.value[2] # second value is the Value obj held by reference
+                    loc[name]= value # assign value to the value Obj refered to inside reference
+                else:
+                    loc, field = cur.value[1], cur.value[2]
+                    if loc.v is None:
+                        return False # the value obj is nil
+                    loc.v[field]=value # assgin value to the Value obj
+            else:
+                target[top_name] = value
+            return True # no recursion, plain value, also the last level of objects
         
         # expect an obj
         obj_content = target[top_name]
