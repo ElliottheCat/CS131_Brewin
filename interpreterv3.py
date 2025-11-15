@@ -50,6 +50,7 @@ class Ref:
 
 ################################################################################################################################################################################################################
 
+# Envrionment class and helpers
 class Environment:
     def __init__(self):
         self.env = []
@@ -81,13 +82,39 @@ class Environment:
         cur_block=self.env[-1][-1] # the last list in envicronment is the block scope we are in. this is true even if we only have the funtional scope left. 
         cur_block[varname]=Value(vartype)
         return True
+    
+    # for referecne chains:
+
+    def ref_target_resolver(self,ref):
+        tag, loc, name = ref.value
+        while True: # keep going down the reference chain 
+            if tag == "top":
+                target=loc
+                n=name
+                val=target.get(n)
+            else:
+                if loc.v is None:
+                    return None, None
+                target=loc.v
+                n=name
+                val=target.get(n) # field inside obj
+
+            if not isinstance(val,Ref): # reached the end, ready to return 
+                return target, n
+            tag, loc, name = val.value
+
 
     def recur_lookup(self, varname):
         for block in self.env[-1]:
-            if varname in block: # block is a nested dictionary
+            if varname in block: # block is a nested dictionary, so are objects
                 return block
         return None
+    
 
+    # I don't watn to rewrite all the logics in variable handling and expression evaluation, so I am substituting a special case of Ref class for an extra layer of abstraction which would give me the ability to perform pass by reference. 
+
+
+    
     def exists(self, varname):
         dot_var=varname.split('.')
         top_name=dot_var[0] # only keep tract of top level name in the environment. rest is in the library
@@ -294,7 +321,7 @@ class Interpreter(InterpreterBase):
             
             if  (name != "main"):
                 if (name[-1] not in ['i','o','b','s','v']):
-                    return super().error(ErrorType.NAME_ERROR,f"function return type not defined") # all function other than main have to declare return type as last char
+                    return super().error(ErrorType.TYPE_ERROR,f"function return type not defined") # all function other than main have to declare return type as last char
 
             if func_identity in self.user_function_def:
                 return super().error(ErrorType.NAME_ERROR,f"duplicate function with same name and parameters")
@@ -403,7 +430,15 @@ class Interpreter(InterpreterBase):
             else:
                 self.env.set(formal, actual) # pass by value
 
-        res, _ = self.run_statements(func_def.get("statements"))
+        res, ret = self.run_statements(func_def.get("statements")) # type:ignore
+        # If we reached the end without a return, return default type
+        if not ret: 
+            rtr_type=self.get_func_return_type(fcall_name)
+            if rtr_type != Type.VOID:
+                res = Value(rtr_type)
+            else:
+                res = None
+
         self.env.exit_func()
         self.cur_func=last_func
         return res
@@ -436,7 +471,7 @@ class Interpreter(InterpreterBase):
                 res, ret = self.return_statement_execution(statement) 
                 break
         
-
+        return res, ret
         
 
 
@@ -520,6 +555,8 @@ class Interpreter(InterpreterBase):
             return Type.STRING
         if vtype=='o':
             return Type.OBJ
+        
+        super().error(ErrorType.TYPE_ERROR, "invalid variable type in name")
 
     def value_type_translation(self, val): 
         if isinstance(val,Value):
@@ -532,7 +569,7 @@ class Interpreter(InterpreterBase):
             return Type.STRING
         if type(val) == dict: # All OBJ are dictionaries!!! No funcitons
             return Type.OBJ
-        if type(val) == None:
+        if val is None:
             return Type.VOID
 
         # else we exhausted all possible valid types
@@ -542,7 +579,7 @@ class Interpreter(InterpreterBase):
         var_type=self.var_name_type_translation(name)# type:ignore
         value_type=self.value_type_translation(value)
         if not var_type == value_type:
-            super().error(ErrorType.NAME_ERROR, "variable type and value type doesn't match in assignemnt")
+            super().error(ErrorType.TYPE_ERROR, "variable type and value type doesn't match in assignemnt")
             return False
         return True
 
@@ -816,7 +853,6 @@ class Interpreter(InterpreterBase):
         
         # Should return default type if no value!!!!!
         return (Value(ftype), True)
-        return (None, True)# return for void functions
 
 
 
