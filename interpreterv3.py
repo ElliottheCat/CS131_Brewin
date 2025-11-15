@@ -106,7 +106,7 @@ class Environment:
             tag=obj_content.value[0] # get tag
             if tag == "top":
                 loc, name=obj_content.value[1], obj_content.value[2] # value is the Value obj held by reference
-                value = loc[name] # value held in the Value obj
+                obj_content = loc[name] # value held in the Value obj
             else: # is a field of obj
                 loc, name=obj_content.value[1], obj_content.value[2] # second value is the Value obj held by reference
                 if loc.v is None:
@@ -115,9 +115,7 @@ class Environment:
                     obj_content=loc.v.get(name) 
                 if obj_content is None:
                     return False # doesn't exist
-
-        nest_var=dot_var[1] # safe, we checked lenth of dot var earlier 
-
+                
         cur_o = obj_content
         for name in dot_var[1:]:
             if cur_o.t != Type.OBJ or cur_o.v is None or name not in cur_o.v: # type:ignore
@@ -148,7 +146,7 @@ class Environment:
                 if loc.v is None:
                     value = None
                 else:
-                    loc.v.get(name) # use the get function to get the value. loc is now a Value obj
+                    value = loc.v.get(name) # use the get function to get the value. 
 
 
         if len(dot_var)==1:
@@ -202,7 +200,7 @@ class Environment:
         
         if len(dot_var)==1: # no recursion
             # do type check in Interpreter! assume everything woerks 
-            target[top_name]=value
+            
             cur = target[top_name]
             if isinstance(cur, Ref):
                 tag = cur.value[0]
@@ -214,7 +212,7 @@ class Environment:
                     if loc.v is None:
                         return False # the value obj is nil
                     loc.v[field]=value # assgin value to the Value obj
-            else:
+            else: # not referenced
                 target[top_name] = value
             return True # no recursion, plain value, also the last level of objects
         
@@ -324,7 +322,7 @@ class Interpreter(InterpreterBase):
         # collect reference flags of the variables
         byref_flags=[]
         for e in formal_elems: #type: ignore
-            byref_flags.append(bool)(e.get("ref")) #type:ignore #'ref': boolean; True if declared with &, else False.
+            byref_flags.append(bool(e.get("ref")) )#type:ignore #'ref': boolean; True if declared with &, else False.
         arg_is_variable = []  
         arg_location = []
 
@@ -361,6 +359,10 @@ class Interpreter(InterpreterBase):
                     last_field=dot_name_lst[-1]
                     arg_is_variable.append(True)
                     arg_location.append(("field",val,last_field)) # note down that this is a field of the obj
+                else:
+                    # not valid variable
+                    arg_is_variable.append(False)
+                    arg_location.append(None)
             else:
                 arg_is_variable.append(False) # invalid varaible!!!
                 arg_location.append(None)
@@ -472,7 +474,8 @@ class Interpreter(InterpreterBase):
             # else, check last field and the last name
             last_name=dotted_names[-1]
             if self.var_name_val_type_match(last_name,value):
-                self.env.set(name, value) # type:ignore ignore possible non from get expression
+                if not self.env.set(name, value): # type:ignore ignore possible non from get expression
+                    super().error(ErrorType.NAME_ERROR, "variable not defined")
                 return 
         super().error(ErrorType.NAME_ERROR, "varable name illegal for assignment")
 
