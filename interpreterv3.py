@@ -48,7 +48,6 @@ class Ref:
         self.value = value
 
 
-
 ################################################################################################################################################################################################################
 
 class Environment:
@@ -121,6 +120,20 @@ class Environment:
             return None # nothing found, or it's uninitialized, both valid for our purposes
         
         value=target[top_name]
+        if isinstance(value, Ref):
+            tag = value.value[0]
+            if tag == "top":
+                # no recursive
+                loc, name=value.value[1], value.value[2] # second value is the Value obj held by reference
+                value = loc[name] # value held in the Value obj
+                # ok I realized how my name schemes is kinda dead but at this point i'm giving up
+            else: # a field in obj
+                loc, name = value.value[1], value.value[2]
+                if loc.v is None:
+                    value = None
+                else:
+                    loc.v.get(name) # use the get function to get the value. loc is now a Value obj
+
 
         if len(dot_var)==1:
             return value # no recursion, plain value, also the last level of objects
@@ -319,18 +332,11 @@ class Interpreter(InterpreterBase):
                     last_field=dot_name_lst[-1]
                     arg_is_variable.append(True)
                     arg_location.append(("field",val,last_field)) # note down that this is a field of the obj
-                else:
-                    arg_is_variable.append(False) # invalid varaible!!!
-                    arg_location.append(None)
-                    
-
-
-
-                arg_is_variable.append(True)
-                arg_location.append((value,name))
-            else: # is object
-                arg_is_variable.append(False)
+            else:
+                arg_is_variable.append(False) # invalid varaible!!!
                 arg_location.append(None)
+                    
+            
 
         
         self.should_return=False# set the flag to false at begining
@@ -344,10 +350,11 @@ class Interpreter(InterpreterBase):
             self.env.fdef(self.value_type_translation(actual),formal)
             if byref_flags[i]:
                 # require reference
-                if not arg_is_variable[i] or arg_location[i] is None or arg_location[i][0] is None:
+                if not arg_is_variable[i] or arg_location[i] is None:
                     super().error(ErrorType.TYPE_ERROR, "by referecnce arguments need to be a variable")
-                    
-            self.env.set(formal, actual)
+                self.env.env[-1][0][formal]=Ref(arg_location[i])
+            else:
+                self.env.set(formal, actual) # pass by value
 
         res, _ = self.run_statements(func_def.get("statements"))
         self.env.exit_func()
