@@ -132,19 +132,31 @@ class Environment:
 
         
 
-    def dict_set(self, obj_content:dict, name_list:list[str],value):
+    def dict_set(self, obj_content:Value, name_list:list[str],value):
         # recursively find the obj until the last name, middle names should all end in o, and middle obj shoudl be of Type.OBJ
-        if len(name_list)==1:
-            name=name_list[0]
-            obj_content[name]=value # sets or creates it whether it exists or not. 
-            return True
-        #else we check if middle object exists (MUST ALL exits!)
-        cur_obj=name_list[0]
-        if cur_obj in obj_content:
-            new_obj_content=obj_content[cur_obj]
-            return self.dict_set(new_obj_content,name_list[1:],value)
-        # intermediate obj not exist
-        return False
+        cur_obj=obj_content
+        index=0
+        n=len(name_list)
+
+        while index<n:
+            name=name_list[index]
+            # can't continue if cufrent is not obje or nil
+            if cur_obj.t!= Type.OBJ or cur_obj.v is None:
+                return False
+            # if this is the last name in liast, assign and return
+            if index == n-1:
+                cur_obj.v[name]=value # type: ignore
+                return True
+            # else go deeper
+            next_o=cur_obj.v[name]# type: ignore
+            if not isinstance(next_o, Value) or next_o.t != Type.OBJ:
+                return False
+            
+            cur_obj=next_o
+            index +=1
+
+
+        return False # shouldn't reach here if set correctly
         
     def set(self, varname, value): # the varname and value type check is in interpreter. we only care avbotu assignment here. 
         # don't check for exist since it waste time. we will do it with set itself
@@ -231,7 +243,7 @@ class Interpreter(InterpreterBase):
     def get_tuple_args_type(self, args:list[Element]) -> Tuple[Type, ...]: # return variable length tuple
         args_type_list=()
         for arg in args:
-            arg_type=self.determine_var_name_type(arg)
+            arg_type=self.var_element_type_translation(arg)
             args_type_list=args_type_list+(arg_type,)
 
         return args_type_list
@@ -266,9 +278,11 @@ class Interpreter(InterpreterBase):
         last_func=self.cur_func
         self.cur_func=fcall_name # set current function's name so return knows what value to default to 
         self.env.enter_func()
+
         for formal, actual in zip(formal_args, actual_args):
-            self.env.fdef(self.type_translation(actual),formal)
+            self.env.fdef(self.value_type_translation(actual),formal)
             self.env.set(formal, actual)
+            
         res, _ = self.run_statements(func_def.get("statements"))
         self.env.exit_func()
         self.cur_func=last_func
@@ -298,7 +312,7 @@ class Interpreter(InterpreterBase):
                 if ret:
                     break
             elif kind == self.RETURN_NODE:
-                if self.type_translation(self.cur_func)!=Type.VOID:
+                if self.value_type_translation(self.cur_func)!=Type.VOID:
                     res, ret = self.return_statement_execution(statement) #type:ignore
                     #must return something if current function is not void! 
                 else:
@@ -311,7 +325,7 @@ class Interpreter(InterpreterBase):
 
     def function_level_var_def_statement(self, var:Element):
         var_name=var.get("name")
-        var_type=self.determine_var_name_type(var)
+        var_type=self.var_element_type_translation(var)
         if var_type not in {Type.INT, Type.BOOL, Type.STRING, Type.OBJ}:
             super().error(ErrorType.TYPE_ERROR, "variable type not defined")
         if not self.env.fdef(var_type, var_name):
@@ -319,7 +333,7 @@ class Interpreter(InterpreterBase):
     
     def block_level_var_def_statement(self, var:Element):
         var_name=var.get("name")
-        var_type=self.determine_var_name_type(var)
+        var_type=self.var_element_type_translation(var)
         if var_type not in {Type.INT, Type.BOOL, Type.STRING, Type.OBJ}:
             super().error(ErrorType.TYPE_ERROR, "variable type not defined")
         if not self.env.bdef(var_type, var_name):
@@ -335,35 +349,34 @@ class Interpreter(InterpreterBase):
         value = self.evaluate_expression(statement.get("expression")) # type:ignore
 
         # only need to check the last char for the ultimate type. 
-        var_type=self.determine_var_name_type(name) # type:ignore
         
 
         dotted_names=name.split('.') #type:ignore
 
         if len(dotted_names)==1: # name is dotted_name
             
-            if not self.var_val_type_match(name,value):
+            if not self.var_name_val_type_match(name,value):
                 super().error(ErrorType.NAME_ERROR, "variable type and value type doesn't match in assignemnt")
             if not self.env.set(name, value):
                 super().error(ErrorType.NAME_ERROR, "variable not defined")
             self.env.set(name, value) # type:ignore ignore possible non from get expression
         
-        elif self.determine_var_name_type(dotted_names[0])==Type.OBJ: #check if first var name is object, if not, error out
+        elif self.var_name_type_translation(dotted_names[0])==Type.OBJ: #check if first var name is object, if not, error out
             for inter in dotted_names[:-1]:
                 # up until last name
-                if self.determine_var_name_type(inter)!=Type.OBJ:
+                if self.var_element_type_translation(inter)!=Type.OBJ:
                     super().error(ErrorType.NAME_ERROR, "intermediate variable name not of obj type in dottted var")
                 
             # else, check last field and the last name
             last_name=dotted_names[-1]
-            if self.var_val_type_match(last_name,value):
+            if self.var_name_val_type_match(last_name,value):
                 self.env.set(name, value) # type:ignore ignore possible non from get expression
                 
         super().error(ErrorType.NAME_ERROR, "varable name illegal for assignment")
 
 
 
-    def determine_var_name_type(self, var:Element):
+    def var_element_type_translation(self, var:Element):
         varname=var.get('name')
         vtype=varname[-1] #type:ignore
         if vtype=='i':
@@ -377,7 +390,19 @@ class Interpreter(InterpreterBase):
         
         super().error(ErrorType.TYPE_ERROR, "invalid variable type in name")
 
-    def type_translation(self, val): 
+    def var_name_type_translation(self, var_name:str):
+        
+        vtype=var_name[-1] #type:ignore
+        if vtype=='i':
+            return Type.INT
+        if vtype=='b':
+            return Type.BOOL
+        if vtype=='s':
+            return Type.STRING
+        if vtype=='o':
+            return Type.OBJ
+
+    def value_type_translation(self, val): 
         if isinstance(val,Value):
             return val.t
         if type(val) == bool:
@@ -394,9 +419,9 @@ class Interpreter(InterpreterBase):
         # else we exhausted all possible valid types
         super().error(ErrorType.TYPE_ERROR, "value type undefined, failed to translate")
     
-    def var_val_type_match(self,name,value):
-        var_type=self.determine_var_name_type(name)# type:ignore
-        value_type=self.type_translation(value)
+    def var_name_val_type_match(self,name,value):
+        var_type=self.var_name_type_translation(name)# type:ignore
+        value_type=self.value_type_translation(value)
         if not var_type == value_type:
             super().error(ErrorType.NAME_ERROR, "variable type and value type doesn't match in assignemnt")
             return False
@@ -600,7 +625,7 @@ class Interpreter(InterpreterBase):
         else:
             super().error(ErrorType.TYPE_ERROR, "invalid funciton return type in name") # should enver reach hear after initial screenign in loading functions
 
-        ret_val_type=self.type_translation(retVal)
+        ret_val_type=self.value_type_translation(retVal)
         if f_rtr_type==ret_val_type:
             return (f_rtr_type,True)
         super().error(ErrorType.TYPE_ERROR, "function return value doesn't match return type") # NO IMPLICITY TYPE CONVERSION
