@@ -147,7 +147,11 @@ class Environment:
             if index == n-1:
                 cur_obj.v[name]=value # type: ignore
                 return True
+            
             # else go deeper
+            if name not in cur_obj.v: #type: ignore
+                # safe gaurd
+                return False
             next_o=cur_obj.v[name]# type: ignore
             if not isinstance(next_o, Value) or next_o.t != Type.OBJ:
                 return False
@@ -359,19 +363,19 @@ class Interpreter(InterpreterBase):
                 super().error(ErrorType.NAME_ERROR, "variable type and value type doesn't match in assignemnt")
             if not self.env.set(name, value):
                 super().error(ErrorType.NAME_ERROR, "variable not defined")
-            self.env.set(name, value) # type:ignore ignore possible non from get expression
+            return # early return after succeeding, else return error 
         
         elif self.var_name_type_translation(dotted_names[0])==Type.OBJ: #check if first var name is object, if not, error out
             for inter in dotted_names[:-1]:
                 # up until last name
-                if self.var_element_type_translation(inter)!=Type.OBJ:
+                if self.var_name_type_translation(inter)!=Type.OBJ:
                     super().error(ErrorType.NAME_ERROR, "intermediate variable name not of obj type in dottted var")
                 
             # else, check last field and the last name
             last_name=dotted_names[-1]
             if self.var_name_val_type_match(last_name,value):
                 self.env.set(name, value) # type:ignore ignore possible non from get expression
-                
+                return 
         super().error(ErrorType.NAME_ERROR, "varable name illegal for assignment")
 
 
