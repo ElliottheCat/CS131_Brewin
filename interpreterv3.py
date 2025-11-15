@@ -492,13 +492,11 @@ class Interpreter(InterpreterBase):
         # By the spec: All intermediate segments must exist and be o‑typed.
 
         name = statement.get("var")
-
         # return Value Obj!!!
         value = self.evaluate_expression(statement.get("expression")) # type:ignore
 
         # only need to check the last char for the ultimate type. 
         
-
         dotted_names=name.split('.') #type:ignore
 
         if len(dotted_names)==1: # name is dotted_name
@@ -509,18 +507,47 @@ class Interpreter(InterpreterBase):
                 super().error(ErrorType.NAME_ERROR, "variable not defined")
             return # early return after succeeding, else return error 
         
-        elif self.var_name_type_translation(dotted_names[0])==Type.OBJ: #check if first var name is object, if not, error out
-            for inter in dotted_names[:-1]:
-                # up until last name
-                if self.var_name_type_translation(inter)!=Type.OBJ:
-                    super().error(ErrorType.NAME_ERROR, "intermediate variable name not of obj type in dottted var")
-                
-            # else, check last field and the last name
-            last_name=dotted_names[-1]
-            if self.var_name_val_type_match(last_name,value):
-                if not self.env.set(name, value): # type:ignore ignore possible non from get expression
-                    super().error(ErrorType.NAME_ERROR, "variable not defined")
-                return 
+        if self.var_name_type_translation(dotted_names[0])!=Type.OBJ: #check if first var name is object, if not, error out
+            super().error(ErrorType.NAME_ERROR, "top name not of obj type in dottted var")
+
+        for inter in dotted_names[1:-1]:# start at 1!
+            # up until last name
+            if self.var_name_type_translation(inter)!=Type.OBJ:
+                super().error(ErrorType.NAME_ERROR, "intermediate variable name not of obj type in dottted var")
+        
+        top_name=dotted_names[0]
+        # else, check last field and the last name
+        last_name=dotted_names[-1]
+        if self.var_name_val_type_match(last_name,value):
+            block = self.env.recur_lookup(top_name)
+            if block is None:
+                super().error(ErrorType.NAME_ERROR, "variable not defined")
+            cur_val=self.deref_to_value(block[top_name])
+            if cur_val.t!=Type.OBJ:
+                super().error(ErrorType.TYPE_ERROR, "can't access field of none obj")
+            if cur_val.v is None:
+                super().error(ErrorType.FAULT_ERROR, "nil dereference")
+
+            for name in dotted_names[1:-1]:
+                fields = cur_val.v
+                if fields is None:
+                    super().error(ErrorType.FAULT_ERROR, "nil dereference")
+                if name not in fields:
+                    super().error(ErrorType.NAME_ERROR, "field not in obj")
+
+                next_val=fields[name]
+                if not isinstance(next_val, Value) or next_val.t!=Type.OBJ:
+                    super().error(ErrorType.TYPE_ERROR, "intermidiate name not obj")
+                if next_val.v is None:
+                    super().error(ErrorType.FAULT_ERROR, "nil dereference")
+                cur_val = next_val
+
+            # Now assign to the final field with creation automaticly done 
+            if cur_val.v is None:
+                super().error(ErrorType.FAULT_ERROR, "nil dereference in assignment")
+            cur_val.v[last_name] = value # type:ignore
+            return # successful
+
         super().error(ErrorType.NAME_ERROR, "varable name illegal for assignment")
 
 
@@ -549,9 +576,38 @@ class Interpreter(InterpreterBase):
         return v
             
 
-    def eval_qname(self,name):
-        
+    def eval_varname(self,name):
+        # get name lists
+        name_lst=name.split('.')
+        top_name=name_lst[0] 
 
+        block=self.env.recur_lookup(top_name) # get the block with our name in it
+        if block is None:
+            super().error(ErrorType.NAME_ERROR, "variable not defined")
+        
+        temp = block[top_name]
+        cur_val=self.deref_to_value(temp) # get the value using dereferencing 
+        if len(name_lst)==1:
+            return cur_val
+        # else it's object
+        if self.var_name_type_translation(top_name)!=Type.OBJ:
+            super().error(ErrorType.TYPE_ERROR, "field of non obj type")
+        for i,field in enumerate(name_lst[1:], start=1): # index start at 1
+            if (i!=len(name_lst)-1) and self.var_name_type_translation(field) != Type.OBJ:
+                super().error(ErrorType.TYPE_ERROR, "intermediate name must be objecst")
+            if cur_val.t!=Type.OBJ: #type:ignore
+                super().error(ErrorType.TYPE_ERROR, "field of non obj type") # still need to cehck if it's a obj to access fields upuntil last variable
+            if cur_val.v is None:
+                # dereferencing nil Fault error
+                super().error(ErrorType.FAULT_ERROR,"dereferenced NIl ptr")
+            
+            if field not in cur_val.v:
+                # filed name not found
+                super().error(ErrorType.NAME_ERROR, "field not found")
+            cur_val=cur_val.v[field] #type: ignore
+
+        return cur_val
+    
 
     def var_element_type_translation(self, var:Element):
         varname=var.get('name')
@@ -707,10 +763,20 @@ class Interpreter(InterpreterBase):
 
         if kind == self.QUALIFIED_NAME_NODE:
             var_name = expr.get("name") # possibly dotted
+            name_lst=var_name.split('.')
+            # simple non-dotted variables still use env functions
+            if len(name_lst) ==1:
+                if not self.env.exists(var_name):
+                    super().error(ErrorType.NAME_ERROR, "variable not defined")
+                val=self.env.get(var_name)
+                if val is None:
+                    super().error(ErrorType.NAME_ERROR, "variable not defined")
+                if isinstance(val, Ref):
+                    val=self.deref_to_value(val)
+                return val
 
-            if not self.env.exists(var_name):
-                super().error(ErrorType.NAME_ERROR, "variable not defined")
-            return self.env.get(var_name)
+            # Dotted names: use interpreter-level checks to distinguish NAME_ERROR / TYPE_ERROR / FAULT_ERROR 
+            return self.eval_varname(var_name)
 
         if kind == self.FCALL_NODE:
             rtr = self.run_func(expr)
