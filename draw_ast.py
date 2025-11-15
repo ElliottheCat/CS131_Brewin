@@ -13,7 +13,9 @@ def main() {
   }
   bvar z;
   var r;
-  r = @;
+
+  r.q = @;
+  r.q.r = 5;
 }
 
 """

@@ -75,7 +75,7 @@ class Environment:
 
     def recur_lookup(self, varname):
         for block in self.env[-1]:
-            if varname in block:
+            if varname in block: # block is a nested dictionary
                 return block
         return None
 
@@ -110,12 +110,12 @@ class Environment:
         if target is None:
             return False # nothing found
         
-        value=target[top_name]
+        in_name=target[top_name]
 
         if len(dot_var)==1:
-            return value # no recursion, plain value, also the last level of objects
+            return in_name # no recursion, plain value, also the last level of objects
         
-        obj_content = value
+        obj_content = in_name
         
         nest_var=dot_var[1] # safe, we checked lenth of dot var earlier 
         if obj_content.t != Type.OBJ or obj_content.v is None or nest_var not in obj_content:
@@ -124,7 +124,18 @@ class Environment:
         return self.get(separate.join(dot_var[1:]))
         
 
+    def dict_set(self, obj:dict, name_list:list[str],value):
+        # recursively find the obj until the last name, middle names should all end in o, and middle obj shoudl be of Type.OBJ
+        if len(name_list)==1:
+            name=name_list[0]
+            obj[name]=value # sets or creates it whether it exists or not. 
+            return True
+        #else we check if middle object exists
+        
 
+        
+            
+        
     def set(self, varname, value):
         
         # don't check for exist since it waste time. we will do it with set itself
@@ -137,14 +148,23 @@ class Environment:
         
         if len(dot_var)==1: # no recursion
             # do type check in Interpreter! assume everything woerks 
-            target[dot_var]=value
+            target[top_name]=value
             return True
         
-        obj_content = value
+        # expect an obj
+        obj_content = target[top_name]
 
-        nest_var=dot_var[1] # safe, we checked lenth of dot var earlier 
-        if obj_content.t != Type.OBJ or obj_content.v is None or nest_var not in obj_content:
-            return False
+        nest_var=dot_var[1:] # safe, we checked lenth of dot var earlier 
+        # mannually go through it
+        for name,index in enumerate(nest_var, 1): # list, we could match it up with the index just like haskell zip
+            if obj_content.t != Type.OBJ or obj_content.v is None:
+                return False
+            if index == len(dot_var) - 1:
+                # the field we want to rewrite 
+                obj_content.v[name] = value
+                return True
+        
+
         separate='.'
         return self.set(separate.join(dot_var[1:]),value)
 
@@ -310,13 +330,31 @@ class Interpreter(InterpreterBase):
             super().error(ErrorType.NAME_ERROR, "variable already defined")
 
     def variable_assign_statement(self, statement:Element):
+        # Two cases: nornal or object (dotted)
+        # By the spec: All intermediate segments must exist and be o‑typed.
+
+
         name = statement.get("var")
-        value = self.evaluate_expression(statement.get("expression")) # type:ignore
-        if not self.var_val_type_match(name,value):
-            super().error(ErrorType.NAME_ERROR, "variable type and value type doesn't match in assignemnt")
-        if not self.env.set(name, value):
-            super().error(ErrorType.NAME_ERROR, "variable not defined")
-        self.env.set(name, var_type,value) # type:ignore ignore possible non from get expression
+        dotted_name=name.('.') #type:ignore
+        if len(dotted_name==1): # name is dotted_name
+            value = self.evaluate_expression(statement.get("expression")) # type:ignore
+            if not self.var_val_type_match(name,value):
+                super().error(ErrorType.NAME_ERROR, "variable type and value type doesn't match in assignemnt")
+            if not self.env.set(name, value):
+                super().error(ErrorType.NAME_ERROR, "variable not defined")
+            self.env.set(name, var_type,value) # type:ignore ignore possible non from get expression
+        
+        elif self.determine_var_type(dotted_name[0])==Type.OBJ: #check if first var name is object, if not, error out
+            for inter in dotted_name[:-1]:
+                # up until last name
+                if self.determine_var_type(inter)!=Type.OBJ:
+                    super().error(ErrorType.NAME_ERROR, "intermediate variable name not of obj type in dottted var")
+            
+            # else, check last field and the last name
+            last_name=dotted_name[-1]
+
+                
+        super().error(ErrorType.NAME_ERROR, "varable name illegal for assignment")
 
 
 
