@@ -117,20 +117,19 @@ class Environment:
         top_name=dot_var[0] # only keep tract of top level name in the environment. rest is in the library
         target=self.recur_lookup(top_name)
         if target is None:
-            return False # nothing found
+            return None # nothing found, or it's uninitialized, both valid for our purposes
         
-        in_name=target[top_name]
+        value=target[top_name]
 
         if len(dot_var)==1:
-            return in_name # no recursion, plain value, also the last level of objects
+            return value # no recursion, plain value, also the last level of objects
         
-        obj_content = in_name
-        
-        nest_var=dot_var[1] # safe, we checked lenth of dot var earlier 
-        if obj_content.t != Type.OBJ or obj_content.v is None or nest_var not in obj_content:
-            return None
-        separate='.'
-        return self.get(separate.join(dot_var[1:]))
+        for name in dot_var[1:]:
+            if value.t != Type.OBJ or value.v is None or name not in value.v:
+                return None
+            value = value.v[name]
+        return value
+
         
 
     def dict_set(self, obj_content:dict, name_list:list[str],value):
