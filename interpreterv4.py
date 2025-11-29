@@ -15,7 +15,7 @@ class Type(enum.Enum):
     FUNCTION = 7 # new func type
 
     @staticmethod
-    def get_type(var_name):
+    def get_type(var_name,defined_interface={}):
         if not var_name:
             return Type.ERROR
         last_letter = var_name[-1]
@@ -25,7 +25,7 @@ class Type(enum.Enum):
             return Type.STRING
         if last_letter == "b":
             return Type.BOOL
-        if last_letter == "o" or last_letter.isupper(): # check if it's an Object or Object of an Interface
+        if last_letter == "o" or last_letter in defined_interface: # check if it's an Object or Object of an Previously defined Interface
             return Type.OBJECT
         if last_letter == "v":
             return Type.VOID  # only for functions
@@ -167,6 +167,7 @@ class Interpreter(InterpreterBase):
 
     def run(self, program):
         ast = parse_program(program)
+        self.__create_interface_table(ast)
         self.__create_function_table(ast)
         call_element = Element(InterpreterBase.FCALL_NODE, name="main", args=[])
         self.__run_fcall(call_element)
@@ -182,7 +183,7 @@ class Interpreter(InterpreterBase):
             last=p.get("name")[-1]
             if last in "biosf":
                 param_type_sig+=last
-            elif last.isupper(): # still object, just restricted
+            elif last in self.interface: # still object, just restricted to keys of interface dict
                 param_type_sig+="o"
             else:
                 super().error(ErrorType.TYPE_ERROR, "invalid type in formal parameter")
@@ -208,6 +209,59 @@ class Interpreter(InterpreterBase):
             else:
                 raise Exception("shouldn't reach this!")
         return arg_sig
+
+
+        
+    def __create_interface_table(self, ast):
+        self.interface={}
+        field_vars={}
+        field_funcs={}
+        inter_list=ast.get("fields")
+        if inter_list:
+            for interface in inter_list:
+                inter_name=interface.get("name")
+                if inter_name in self.interface or not (len(inter_name)==1 and inter_name.isupper()):
+                    # name error, can't have multiple diffetnet interfaces
+                    super().error(ErrorType.NAME_ERROR,"interface redeclared or name error")
+
+                fields=interface.get("fields")
+                if fields:
+                    for field in fields:
+                        if field.elem_type=='field_var':
+                            var_name=field.get("name")
+                            if var_name in field_vars:
+                                super().error(ErrorType.NAME_ERROR,"interface: multiple variable of same name")
+                            field_vars[var_name]=Type.get_type(var_name)
+                        if field.elem_type=='field_func':
+                            func_name=field.get("name")
+                            if func_name in field_funcs:
+                                super().error(ErrorType.NAME_ERROR,"interface: multiple funcitons of same name")
+                            func_params=field.get("params")
+                            func_para_names=[]
+                            func_para_is_ref=[]
+                            func_para_types=[]
+                            if func_params:
+                                for p in func_params:
+                                    pname=p.get("name")
+                                    pref=p.get("ref")
+                                    func_para_names.append(pname)
+                                    func_para_is_ref.append(pref)
+
+                                    t=Type.get_type(pname,self.interface)
+                                    if t==Type.ERROR or t==Type.VOID:
+                                        super().error(
+                                                ErrorType.TYPE_ERROR, "void/error type not allowed as parameter"
+                                            )
+                                    func_para_types.append(t) # would error out if the parameter doesn't satisfy requirement
+
+                            field_funcs[func_name]={
+                                "func_para_names": func_para_names,
+                                "func_para_is_ref":func_para_is_ref,
+                                "func_para_types": func_para_types
+                            }
+
+                # add current interface to self.interface list
+                self.interface[inter_name]={"field_vars":field_vars, "field_funcs":field_funcs} # store a nested library witn the vars and funcs required. 
 
     def __create_function_table(self, ast):
         self.funcs = {}
@@ -272,7 +326,7 @@ class Interpreter(InterpreterBase):
             if sub not in lvalue.v:
                 super().error(ErrorType.NAME_ERROR, "object member not found")
             # every inner item must be an object, ending in an o OR upper case letter
-            if not (sub[-1] == "o" or sub[-1].isupper()):
+            if not (sub[-1] == "o" or sub[-1] in self.interface):
                 super().error(ErrorType.TYPE_ERROR, "member must be an object")
             lvalue = lvalue.v[sub]
             # every inner object must be non-nil
@@ -587,7 +641,7 @@ class Interpreter(InterpreterBase):
         value = self.env.get(dotted_name[0])
         suffix_name = dotted_name[1:]
         # update check to both obj and interface obj
-        if len(dotted_name) > 1 and not (dotted_name[0][-1] == "o" or dotted_name[0][-1].isupper()):
+        if len(dotted_name) > 1 and not (dotted_name[0][-1] == "o" or dotted_name[0][-1] in self.interface):
             super().error(ErrorType.TYPE_ERROR, "cannot dereference a non-object")
         for i, sub in enumerate(suffix_name):
             if value.v == None:  # NIL
@@ -595,7 +649,7 @@ class Interpreter(InterpreterBase):
             if sub not in value.v:
                 super().error(ErrorType.NAME_ERROR, "object member not found")
             # every inner item must be an object, ending in an o
-            if i < len(suffix_name) - 1 and not (sub[-1] == "o" or sub[-1].isupper()):
+            if i < len(suffix_name) - 1 and not (sub[-1] == "o" or sub[-1] in self.interface):
                 super().error(ErrorType.TYPE_ERROR, "member must be an object")
             value = value.v[sub]
         return value
