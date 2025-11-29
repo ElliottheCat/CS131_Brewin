@@ -434,6 +434,7 @@ class Interpreter(InterpreterBase):
         dotted_names=fcall_name.split(".")
         top_name=dotted_names[0]
 
+        
         # first cehck for variable or field of an obj in our current environemtn:
         if self.env.exists(top_name):
             # create a Elemennt variale for __get_var_value to work
@@ -453,6 +454,19 @@ class Interpreter(InterpreterBase):
             if len(args) != len(func_def.formal_args):
                 super().error(ErrorType.TYPE_ERROR, "wrong num of parameters")
             
+
+            # Record selfo BEFORE entering new frame!!!!!!! Else can't find it in the new func frame!!!!!!!
+            self_val=None # assume we don't need to inject it
+
+            # only need to inject if we are calling from an obj member function
+            if len(dotted_names)>1:
+                # selfo refers to the object directly infront of funciton call, which is a chain of objo.objo.objo... until the funcf
+                self_name=".".join(dotted_names[:-1])
+                self_val=self.__get_var_value(Element(self.QUALIFIED_NAME_NODE, name=self_name)) # return Value with obj reference to self
+
+
+
+
             self.env.enter_func() # new functional environemnt
 
             # collect all the closured variables into the new environment so we can access it
@@ -480,12 +494,9 @@ class Interpreter(InterpreterBase):
                 self.env.fdef_or_set(formal, actual) 
                 # same code as the interpreter3 solution, except that we are overwritting the value inside clsure if a inner parameter has teh same name as the caputured variables. This is not a name error! This is just the shadowing. 
                 
-            # inject selfo if this is from an obj
+            # inject selfo if this is from an obj IF IT"S SET IN THE LAST FRAMMMMEEEMEMEM
             
-            if len(dotted_names)>1:
-                # selfo refers to the object directly infront of funciton call, which is a chain of objo.objo.objo... until the funcf
-                self_name=".".join(dotted_names[:-1])
-                self_val=self.__get_var_value(Element(self.QUALIFIED_NAME_NODE, name=self_name)) # return Value with obj reference to self
+            if self_val is not None:
                 self.env.fdef_or_set("selfo",self_val) # incase any selfo was in the previous environment
 
             res, _ = self.__run_statements(func_def, func_def.statements)
@@ -778,7 +789,8 @@ class Interpreter(InterpreterBase):
                 # function clearly doens't match waht ever we are expecting
                 super().error(ErrorType.TYPE_ERROR, "obj func type wrong/Nil")
 
-            obj_func_para_sig=func_val.func_def.formal_args #Google: Python dictionaries preserve the initial insertion order of their keys
+            # Remeber to use the FunctionValue inside the Value.v!!!!
+            obj_func_para_sig=func_val.v.func_def.formal_args #Google: Python dictionaries preserve the initial insertion order of their keys
             # We can thus use the library to cehck the argument types as we enetered them when making the funciton
             formal_para=[]
             req_para_types=func_info["func_para_types"]
@@ -789,7 +801,8 @@ class Interpreter(InterpreterBase):
             if len(req_para_types)!=len(obj_func_para_sig):
                 super().error(ErrorType.TYPE_ERROR, "obj func parameter count doesnt' match interface")
 
-            for (obj_para_name, obj_para_ref), req_type, req_ref in zip(obj_func_para_sig,req_para_types,req_para_ref):
+            # DON"T FORGET TO USE .items() for FULL ITERATION of (key,value)!!!!IHIUFEKGL<SUFLDFSKUG
+            for (obj_para_name, obj_para_ref), req_type, req_ref in zip(obj_func_para_sig.items(),req_para_types,req_para_ref):
                 last=obj_para_name[-1]
                 # Need to add validation that stricter interface obj are accepted into less strict interface ones, but not vice versa.
                 obj_para_t=Type.get_type(obj_para_name)
