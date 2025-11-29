@@ -108,6 +108,9 @@ class Environment:
             self.fdef(varname,value)
 
     def exists(self, varname):
+        # before entering main, we don't have anythign in env yet. Prevent error in run_func
+        if not self.env:
+            return False
         for block in self.env[-1]:
             if varname in block:
                 return True
@@ -152,10 +155,8 @@ class FunctionValue:
         self.closure_var={} # assume we have no closure variable
         if closure_var:
             self.closure_var=closure_var 
-    def get_function_definition(self):
-        return self.func_def
-    def get_closure_variables(self):
-        return self.closure_var
+
+
 
 class Interpreter(InterpreterBase):
     def __init__(self, console_output=True, inp=None, trace_output=False):
@@ -357,7 +358,7 @@ class Interpreter(InterpreterBase):
 
             # collect all the closured variables into the new environment so we can access it
             # we should reassign the values if inner parameters exists
-            close_var=func_val.get_closure_variables()
+            close_var=func_val.closure_var
             for name in close_var:
                 val = close_var[name]
                 copied=self.__clone_for_passing(val,False) # always copy by value or obj reference
@@ -601,7 +602,7 @@ class Interpreter(InterpreterBase):
     
     def __get_all_functions_named(self, func_name):
         ret=[]
-        for (name,par), func_obj in self.funcs:
+        for (name,par), func_obj in self.funcs.items():
             if name == func_name:
                 ret.append(func_obj)
         return ret # return all functions named func_name
