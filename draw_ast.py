@@ -17,7 +17,13 @@ def main() {
 
   var ao;
   ao = @;
-  ao.addf = lambdai(ai,bi) { return ai+bi; }; /* addf is a method of ao */
+  var i;
+  i = 5;
+  ao.addf = lambdai(ai,bi) { 
+    ai = i;
+    return ai+bi; 
+
+  }; /* addf is a method of ao */
   ao.ai=1;
   ao.addf(1,2);
 }
@@ -35,6 +41,9 @@ interface Q {
 def f1v(pi) {
   print(pi);
 }
+def f1v(pi,ps) {
+  print(pi,ps);
+}
 def f2s(&paramb, params) {
   paramb = false;
   return params + "!";
@@ -46,7 +55,7 @@ def main() {
   o.fooi = 10;
   o.barb = true;
   o.bletchs = "haha";
-  o.func1f =f1v;
+  o.func1f = f1v;
   o.func2f = f2s;
   var blahQ; /* blahQ is a variable that is guaranteed to point to either nil or an object that has
   blahQ = o; /* this works because object o has all required fields/types of interface Q */
@@ -97,7 +106,7 @@ def main() {
 """
 
 def main():
-    ast=parse_program(program_source4,True)
+    ast=parse_program(program_source2,True)
     # added save to png in plot.py, doesn't affect other stuff. 
     #ast = parse_program(program_source, False)
     #print(ast.elem_type)             

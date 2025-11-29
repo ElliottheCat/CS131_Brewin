@@ -67,6 +67,7 @@ class Value:
         raise Exception("invalid default value for type")
 
 
+
 class Environment:
     def __init__(self):
         self.env = []
@@ -136,6 +137,18 @@ class Function:
 
         return Type.get_type(name)
 
+class FunctionValue: 
+    # store the funciton we ponit to (and possibly copy of variables in the environment when we define a lambda)
+    # THis is like a wrapper for the Function calss, except now we have extra informations about the closure if needed. 
+    def __init__(self, func_def, closure_var=None): # holds definition in a Function class obj
+        self.func_def=func_def 
+        self.closure_var={} # assume we have no closure variable
+        if closure_var:
+            self.closure_var=closure_var 
+    def get_function_definition(self):
+        return self.func_def
+    def get_closure_variables(self):
+        return self.closure_var
 
 class Interpreter(InterpreterBase):
     def __init__(self, console_output=True, inp=None, trace_output=False):
@@ -197,10 +210,10 @@ class Interpreter(InterpreterBase):
             func_obj = Function(func)
             if func_obj.return_type == Type.ERROR:
                 super().error(ErrorType.TYPE_ERROR)
-            type_sig = (name, param_type_sig)
+            type_sig = (name, param_type_sig) # overloading signature
             if type_sig in self.funcs:
                 super().error(ErrorType.NAME_ERROR, "function already defined")
-            self.funcs[type_sig] = func_obj
+            self.funcs[type_sig] = func_obj # overloading signature: Function body definition
 
     def __get_function(self, name, param_type_signature=""):
         if (name, param_type_signature) not in self.funcs:
@@ -308,7 +321,7 @@ class Interpreter(InterpreterBase):
 
         if fcall_name == "print":
             return self.__handle_print(args)
-
+    
         actual_args = [self.eval_expr(a) for a in args]
         args_type_sig = self.__get_arguments_type_signature(actual_args)
         func_def = self.__get_function(fcall_name, args_type_sig)
@@ -522,6 +535,14 @@ class Interpreter(InterpreterBase):
                 super().error(ErrorType.TYPE_ERROR, "member must be an object")
             value = value.v[sub]
         return value
+    
+    def __get_all_functions_named(self, func_name):
+        ret=[]
+        for func in self.funcs:
+            if func[0] == func_name:
+                ret.append(func)
+        return ret # return all functions named func_name
+
 
     def eval_expr(self, expr):
         kind = expr.elem_type
@@ -541,8 +562,18 @@ class Interpreter(InterpreterBase):
         if kind == self.EMPTY_OBJ_NODE:
             return Value(Type.OBJECT, {})
 
-        if kind == self.QUALIFIED_NAME_NODE:
-            return self.__get_var_value(expr)
+        if kind == self.QUALIFIED_NAME_NODE: # could be a function name now!
+            dotted_names=expr.get("name").split(".") # want to check if variable name is a function; return function pointer if it is, else evaluate the value of variable normally
+            top_name=dotted_names[0] # first name in dots
+            if self.env.exists(top_name):
+                return self.__get_var_value(expr) # This is a variable in our current environment, not need to go to global functions
+            
+            funcs=self.__get_all_functions_named(top_name)
+            if len(funcs)==0:
+                super().error(ErrorType.NAME_ERROR, "funciton name not found for assignemnts")
+
+            func_def=funcs[0] # incase there are more, we choose the first one to avoid ambiguity
+            return Value(Type.FUNCTION,FunctionValue(func_def)) # global funciton no need for closure. 
 
         if kind == self.FCALL_NODE:
             return self.__run_fcall(expr)
