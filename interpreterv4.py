@@ -99,6 +99,13 @@ class Environment:
         top_env = self.env[-1]
         top_env[-1][varname] = value
         return True
+    
+    # define or set inner parameters fo closures if not already added by the closure vairables
+    def fdef_or_set(self,varname,value):
+        if self.exists(varname):
+            self.set(varname,value)
+        else:
+            self.fdef(varname,value)
 
     def exists(self, varname):
         for block in self.env[-1]:
@@ -348,7 +355,8 @@ class Interpreter(InterpreterBase):
             
             self.env.enter_func() # new functional environemnt
 
-            # First collect all the closured variables into the new environment so we can access it
+            # collect all the closured variables into the new environment so we can access it
+            # we should reassign the values if inner parameters exists
             close_var=func_val.get_closure_variables()
             for name in close_var:
                 val = close_var[name]
@@ -362,17 +370,10 @@ class Interpreter(InterpreterBase):
                     formal
                 ]  
                 actual = self.__clone_for_passing(actual, ref_param)
-                self.env.fdef(
-                    formal, actual
-                ) 
-                # same code as the interpreter3 solution
+                self.env.fdef_or_set(formal, actual) 
+                # same code as the interpreter3 solution, except that we are overwritting the value inside clsure if a inner parameter has teh same name as the caputured variables. This is not a name error! This is just the shadowing. 
                 
-
-
             # inject selfo if this is from an obj
-            
-            # Also, this later assignment would fail if the parameter is already defined with the same name, whici matches the requried shadowing desciption: A closure's parameter shadows the outside environemnt variables. 
-            # would this be an issue??? maybe later the funcitno defines a same named vairable as the outside one, closure should ignore teh outside one. maybe later not use fdef. block doens' twork but maybe check directly in the closure var if all variable can't be resolved??
             
             if len(dotted_names)>1:
                 # selfo refers to the object directly infront of funciton call, which is a chain of objo.objo.objo... until the funcf
