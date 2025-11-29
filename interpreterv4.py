@@ -321,10 +321,72 @@ class Interpreter(InterpreterBase):
 
         if fcall_name == "print":
             return self.__handle_print(args)
-    
-        actual_args = [self.eval_expr(a) for a in args]
+        
+        
+
+        actual_args = [self.eval_expr(a) for a in args] # get actual arguments for typing
+
+        # now we need to first determine if our funciton call's name is an actual global funciton or function variable/field name
+        dotted_names=fcall_name.split(".")
+        top_name=dotted_names[0]
+
+        # first cehck for variable or field of an obj in our current environemtn:
+        if self.env.exists(top_name):
+            # create a Elemennt variale for __get_var_value to work
+            temp=Element(self.QUALIFIED_NAME_NODE,name=fcall_name) # now we can use the given funciton to evaluate the function value obj
+            func_val_obj=self.__get_var_value(temp) # this should return the sotred FunctionValue obj in our envoronment.
+
+            # check erros
+            if func_val_obj.t!=Type.FUNCTION:
+                super().error(ErrorType.TYPE_ERROR, "attempting to call an non-function")
+            if func_val_obj.v is None: # Fault erro
+                super().error(ErrorType.FAULT_ERROR, "caling nil funcitons")
+            
+            func_val:FunctionValue = func_val_obj.v
+            func_def=func_val.func_def # v holds a FunctionValue type, and func_def is inside FunctionValue, pointing to the fefinition of the functions
+
+            
+            self.env.enter_func() # new functional environemnt
+
+            # First collect all the closured variables into the new environment so we can access it
+            close_var=func_val.get_closure_variables()
+            for name in close_var:
+                val = close_var[name]
+                copied=self.__clone_for_passing(val,False) # always copy by value or obj reference
+                self.env.fdef(name, copied) # define the variable inside function using closure 
+            
+            
+
+            for formal, actual in zip(func_def.formal_args.keys(), actual_args):
+                ref_param = func_def.formal_args[
+                    formal
+                ]  
+                actual = self.__clone_for_passing(actual, ref_param)
+                self.env.fdef(
+                    formal, actual
+                ) 
+                # same code as the interpreter3 solution
+                
+
+
+            # inject selfo if this is from an obj
+            
+            # Also, this later assignment would fail if the parameter is already defined with the same name, whici matches the requried shadowing desciption: A closure's parameter shadows the outside environemnt variables. 
+            # would this be an issue??? maybe later the funcitno defines a same named vairable as the outside one, closure should ignore teh outside one. maybe later not use fdef. block doens' twork but maybe check directly in the closure var if all variable can't be resolved??
+            
+            if len(dotted_names)>1:
+                # selfo refers to the object directly infront of funciton call, which is a chain of objo.objo.objo... until the funcf
+                self_name=".".join(dotted_names[:-1])
+                self_val=self.__get_var_value(Element(self.QUALIFIED_NAME_NODE, name=self_name)) # return Value with obj reference to self
+                self.env.fdef("selfo",self_val)
+            res, _ = self.__run_statements(func_def, func_def.statements)
+            self.env.exit_func()
+            return res # end of execution for the fcuntion varibale 
+        
+        # if the fiunction is not called using funciton variable or field, we use the old behaviors. 
+
         args_type_sig = self.__get_arguments_type_signature(actual_args)
-        func_def = self.__get_function(fcall_name, args_type_sig)
+        func_def = self.__get_function(fcall_name, args_type_sig) # for global functions
 
         self.env.enter_func()
         for formal, actual in zip(func_def.formal_args.keys(), actual_args):
