@@ -86,9 +86,13 @@ class Environment:
 
     # define new variable at function scope
     def fdef(self, varname, value):
-        if self.exists(varname):
-            return False
+        # if self.exists(varname):
+        #     return False
+
         top_env = self.env[-1]
+        # from test, we should only care about the first [] which represents the funcitonal level scope for fdef
+        if varname in top_env[0]:
+            return False
         top_env[0][varname] = value
         return True
 
@@ -96,7 +100,10 @@ class Environment:
     def bdef(self, varname, value):
         # if self.exists(varname):
         #     return False
+
         top_env = self.env[-1]
+        if len(top_env)==1:
+            top_env.append([]) # outer block
         if varname in top_env[-1]: # only check duplicates in current block, not entire funciton
             return False
         top_env[-1][varname] = value
@@ -219,11 +226,12 @@ class Interpreter(InterpreterBase):
         
     def __create_interface_table(self, ast):
         self.interface={}
-        field_vars={}
-        field_funcs={}
+        
         inter_list=ast.get("interfaces")
         if inter_list:
             for interface in inter_list:
+                field_vars={}
+                field_funcs={}
                 inter_name=interface.get("name")
                 if len(inter_name)!=1 or not inter_name.isupper():
                     super().error(ErrorType.NAME_ERROR,"interface  name error")
@@ -329,7 +337,17 @@ class Interpreter(InterpreterBase):
         if Type.get_type(dotted_name[-1]) != rvalue.t:
             super().error(ErrorType.TYPE_ERROR, "type mismatch in assignment")
 
+        last=dotted_name[-1][-1]
+        if last.isupper() and last not in self.interface:
+            super().error(ErrorType.TYPE_ERROR, "no interface satisfiable")
+        if rvalue.t==Type.OBJECT and last.isupper() and last in self.interface:
+            self.__check_interface_compat(rvalue,last) # check compatibility first
+        
+        
+        
+
         if len(dotted_name) == 1:
+            
             value = self.env.get(name)
             value.set(
                 rvalue
@@ -440,12 +458,19 @@ class Interpreter(InterpreterBase):
                 copied=self.__clone_for_passing(val,False) # always copy by value or obj reference
                 self.env.fdef(name, copied) # define the variable inside function using closure 
             
-            
+            formal_names = list(func_def.formal_args.keys()) # get the list of the formal argumetns of funciton from the Funciton obj
+
+            for i, name in enumerate(formal_names):
+                last=name[-1]
+                if last.isupper() and last in self.interface:
+                    val=actual_args[i]
+                    if val.t!=Type.OBJECT: # can't possibly assign to a INterfaced obj
+                        super().error(ErrorType.TYPE_ERROR, "needs obj for interface")
+                    self.__check_interface_compat(val,last) # check the interface name and value compatability
+
 
             for formal, actual in zip(func_def.formal_args.keys(), actual_args):
-                ref_param = func_def.formal_args[
-                    formal
-                ]  
+                ref_param = func_def.formal_args[formal]  
                 actual = self.__clone_for_passing(actual, ref_param)
                 self.env.fdef_or_set(formal, actual) 
                 # same code as the interpreter3 solution, except that we are overwritting the value inside clsure if a inner parameter has teh same name as the caputured variables. This is not a name error! This is just the shadowing. 
@@ -457,6 +482,7 @@ class Interpreter(InterpreterBase):
                 self_name=".".join(dotted_names[:-1])
                 self_val=self.__get_var_value(Element(self.QUALIFIED_NAME_NODE, name=self_name)) # return Value with obj reference to self
                 self.env.fdef_or_set("selfo",self_val) # incase any selfo was in the previous environment
+
             res, _ = self.__run_statements(func_def, func_def.statements)
             self.env.exit_func()
             return res # end of execution for the fcuntion varibale 
@@ -465,6 +491,18 @@ class Interpreter(InterpreterBase):
 
         args_type_sig = self.__get_arguments_type_signature(actual_args)
         func_def = self.__get_function(fcall_name, args_type_sig) # for global functions
+
+
+        formal_names = list(func_def.formal_args.keys()) # get the list of the formal argumetns of funciton from the Funciton obj
+
+        for i, name in enumerate(formal_names):
+            last=name[-1]
+            if last.isupper() and last in self.interface:
+                val=actual_args[i]
+                if val.t!=Type.OBJECT: # can't possibly assign to a INterfaced obj
+                    super().error(ErrorType.TYPE_ERROR, "needs obj for interface")
+                self.__check_interface_compat(val,last) # check the interface name and value compatability
+
 
         self.env.enter_func()
         for formal, actual in zip(func_def.formal_args.keys(), actual_args):
@@ -693,6 +731,64 @@ class Interpreter(InterpreterBase):
                 rtr[name]=copy(val) # shallow copy for Value and obj reference behavior
         
         return rtr
+
+
+    def __check_interface_compat(self, obj_val, interface_name):
+        # cehck if obj satisfies interface compatability
+        # This would through an eerror if any of th einterface members are missing.
+        if obj_val.v is None:
+            # uninitialized interface obj, fine
+            return
+        
+        # collect all the var/funcs we want to check
+        requirement=self.interface[interface_name]
+        required_vars=requirement["field_vars"]
+        required_func=requirement["field_funcs"]
+        obj_dict=obj_val.v
+
+        # check variable first
+        for vname, vtype in required_vars.items():
+            # see if obj has it
+            if vname not in obj_dict:
+                super().error(ErrorType.TYPE_ERROR, "obj missing var in interface")
+            field_val=obj_dict[vname]
+            if field_val.t != vtype:
+                super().error(ErrorType.TYPE_ERROR, "obj var with wrong type!") # used when we first assign outside values
+
+        # now for funcitons
+        for func_name, func_info in required_func.items():
+            if func_name not in obj_dict:
+                super().error(ErrorType.TYPE_ERROR, "obj missing func in interface")
+            
+            func_val=obj_dict[func_name]
+            if func_val.t != Type.FUNCTION or func_val.v is None:
+                # function clearly doens't match waht ever we are expecting
+                super().error(ErrorType.TYPE_ERROR, "obj func type wrong/Nil")
+
+            obj_func_para_sig=func_val.func_def.formal_args #Google: Python dictionaries preserve the initial insertion order of their keys
+            # We can thus use the library to cehck the argument types as we enetered them when making the funciton
+            formal_para=[]
+            req_para_types=func_info["func_para_types"]
+            req_para_ref=func_info["func_para_is_ref"]
+
+            if len(req_para_types)==0 and len(obj_func_para_sig)==0:
+                continue # nothing left to check for this funciton
+            if len(req_para_types)!=len(obj_func_para_sig):
+                super().error(ErrorType.TYPE_ERROR, "obj func parameter count doesnt' match interface")
+
+            for (obj_para_name, obj_para_ref), req_type, req_ref in zip(obj_func_para_sig,req_para_types,req_para_ref):
+                last=obj_para_name[-1]
+                # Need to add validation that stricter interface obj are accepted into less strict interface ones, but not vice versa.
+                obj_para_t=Type.get_type(obj_para_name)
+                if obj_para_t!=req_type or obj_para_ref!= req_ref:
+                    super().error(ErrorType.TYPE_ERROR, "obj func parameter type or ref type doesnt' match interface")
+            
+
+
+
+
+
+
 
 
     def eval_expr(self, expr):
