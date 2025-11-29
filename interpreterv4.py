@@ -379,7 +379,7 @@ class Interpreter(InterpreterBase):
                 # selfo refers to the object directly infront of funciton call, which is a chain of objo.objo.objo... until the funcf
                 self_name=".".join(dotted_names[:-1])
                 self_val=self.__get_var_value(Element(self.QUALIFIED_NAME_NODE, name=self_name)) # return Value with obj reference to self
-                self.env.fdef("selfo",self_val)
+                self.env.fdef_or_set("selfo",self_val) # incase any selfo was in the previous environment
             res, _ = self.__run_statements(func_def, func_def.statements)
             self.env.exit_func()
             return res # end of execution for the fcuntion varibale 
@@ -601,10 +601,21 @@ class Interpreter(InterpreterBase):
     
     def __get_all_functions_named(self, func_name):
         ret=[]
-        for func in self.funcs:
-            if func[0] == func_name:
-                ret.append(func)
+        for (name,par), func_obj in self.funcs:
+            if name == func_name:
+                ret.append(func_obj)
         return ret # return all functions named func_name
+
+    def __build_lambda_closure(self):
+        # want to get eth current environemtn so that we can use it as reference for closure variabels
+        rtr={}
+        cur_frame=self.env.env[-1] # get the list of blocks of our current funciton
+        for block in cur_frame: # from first (function level) to the most inner block. later variables overrides the previous ones, so it shadows the outer vars for our blocks. 
+            # shaowing legality is checked when a variable is defined, we don't need to worry about it here.
+            for name,val in block.items(): # iterate using library items() for convinience
+                rtr[name]=copy(val) # shallow copy for Value and obj reference behavior
+        
+        return rtr
 
 
     def eval_expr(self, expr):
@@ -626,16 +637,18 @@ class Interpreter(InterpreterBase):
             return Value(Type.OBJECT, {})
 
         if kind == self.QUALIFIED_NAME_NODE: # could be a function name now!
-            dotted_names=expr.get("name").split(".") # want to check if variable name is a function; return function pointer if it is, else evaluate the value of variable normally
+            dotted_names=expr.get("name").split(".") # want to check if variable name is a function; return function defintion if it is, else evaluate the value of variable normally
             top_name=dotted_names[0] # first name in dots
             if self.env.exists(top_name):
                 return self.__get_var_value(expr) # This is a variable in our current environment, not need to go to global functions
             
-            funcs=self.__get_all_functions_named(top_name)
-            if len(funcs)==0:
+            match_funcs=self.__get_all_functions_named(top_name)
+            if len(match_funcs)==0:
                 super().error(ErrorType.NAME_ERROR, "funciton name not found for assignemnts")
 
-            func_def=funcs[0] # incase there are more, we choose the first one to avoid ambiguity
+            if len(match_funcs)>1:
+                super().error(ErrorType.TYPE_ERROR, "ambiguous function reference by name, more than one func in global")
+            func_def=match_funcs[0] 
             return Value(Type.FUNCTION,FunctionValue(func_def)) # global funciton no need for closure. 
 
         if kind == self.FCALL_NODE:
@@ -661,8 +674,16 @@ class Interpreter(InterpreterBase):
 
         if kind == self.CONVERT_NODE:
             return self.__eval_convert(expr)
+        
+        if kind == self.FUNC_NODE: # for lambda definitons
+            func_def=Function(expr) # save in Funciton obj
+            closure=self.__build_lambda_closure() # caputre current function environment variables
+            return Value(Type.FUNCTION,FunctionValue(func_def,closure))
 
         raise Exception("should not get here!")
+
+
+
 
 
 def main():
