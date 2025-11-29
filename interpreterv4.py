@@ -15,7 +15,7 @@ class Type(enum.Enum):
     FUNCTION = 7 # new func type
 
     @staticmethod
-    def get_type(var_name,defined_interface={}):
+    def get_type(var_name):
         if not var_name:
             return Type.ERROR
         last_letter = var_name[-1]
@@ -25,7 +25,7 @@ class Type(enum.Enum):
             return Type.STRING
         if last_letter == "b":
             return Type.BOOL
-        if last_letter == "o" or last_letter in defined_interface: # check if it's an Object or Object of an Previously defined Interface
+        if last_letter == "o" or last_letter.isupper(): # check if it's an Object or Object of an Previously defined Interface
             return Type.OBJECT
         if last_letter == "v":
             return Type.VOID  # only for functions
@@ -94,9 +94,11 @@ class Environment:
 
     # define new variable in top block
     def bdef(self, varname, value):
-        if self.exists(varname):
-            return False
+        # if self.exists(varname):
+        #     return False
         top_env = self.env[-1]
+        if varname in top_env[-1]: # only check duplicates in current block, not entire funciton
+            return False
         top_env[-1][varname] = value
         return True
     
@@ -183,7 +185,10 @@ class Interpreter(InterpreterBase):
             last=p.get("name")[-1]
             if last in "biosf":
                 param_type_sig+=last
-            elif last in self.interface: # still object, just restricted to keys of interface dict
+            elif last.isupper():
+                if last not in self.interface: # still object, just restricted to keys of interface dict
+                    super().error(ErrorType.TYPE_ERROR, "invalid interface type")
+                
                 param_type_sig+="o"
             else:
                 super().error(ErrorType.TYPE_ERROR, "invalid type in formal parameter")
@@ -216,13 +221,15 @@ class Interpreter(InterpreterBase):
         self.interface={}
         field_vars={}
         field_funcs={}
-        inter_list=ast.get("fields")
+        inter_list=ast.get("interfaces")
         if inter_list:
             for interface in inter_list:
                 inter_name=interface.get("name")
-                if inter_name in self.interface or not (len(inter_name)==1 and inter_name.isupper()):
+                if len(inter_name)!=1 or not inter_name.isupper():
+                    super().error(ErrorType.NAME_ERROR,"interface  name error")
+                if inter_name in self.interface:
                     # name error, can't have multiple diffetnet interfaces
-                    super().error(ErrorType.NAME_ERROR,"interface redeclared or name error")
+                    super().error(ErrorType.NAME_ERROR,"interface redeclared ")
 
                 fields=interface.get("fields")
                 if fields:
@@ -231,7 +238,9 @@ class Interpreter(InterpreterBase):
                             var_name=field.get("name")
                             if var_name in field_vars:
                                 super().error(ErrorType.NAME_ERROR,"interface: multiple variable of same name")
+                            
                             field_vars[var_name]=Type.get_type(var_name)
+
                         if field.elem_type=='field_func':
                             func_name=field.get("name")
                             if func_name in field_funcs:
@@ -247,10 +256,15 @@ class Interpreter(InterpreterBase):
                                     func_para_names.append(pname)
                                     func_para_is_ref.append(pref)
 
-                                    t=Type.get_type(pname,self.interface)
+                                    t=Type.get_type(pname)
                                     if t==Type.ERROR or t==Type.VOID:
                                         super().error(
                                                 ErrorType.TYPE_ERROR, "void/error type not allowed as parameter"
+                                            )
+                                    last=pname[-1]
+                                    if last.isupper() and last not in self.interface:
+                                        super().error(
+                                                ErrorType.TYPE_ERROR, "invalid interface"
                                             )
                                     func_para_types.append(t) # would error out if the parameter doesn't satisfy requirement
 
@@ -268,6 +282,10 @@ class Interpreter(InterpreterBase):
         # valid_types = {"i", "s", "b", "o","f"} # from standard answer but unused for some reason lol
         for func in ast.get("functions"):
             name = func.get("name")
+            last=name[-1]
+            if last.isupper() and last not in self.interface:
+                super().error(ErrorType.TYPE_ERROR)
+
             param_type_sig = self.__get_parameters_type_signature(func.get("args"))
             func_obj = Function(func)
             if func_obj.return_type == Type.ERROR:
@@ -287,6 +305,10 @@ class Interpreter(InterpreterBase):
         var_type = Type.get_type(name)
         if var_type == Type.ERROR or var_type == Type.VOID:
             super().error(ErrorType.TYPE_ERROR, "invalid variable type")
+
+        last=name[-1]
+        if last.isupper() and last not in self.interface:
+            super().error(ErrorType.TYPE_ERROR, "invalid interface type")
 
         default_value = Value(var_type)
         if block_def:
