@@ -636,7 +636,7 @@ class Interpreter(InterpreterBase):
             if tl == Type.OBJECT and tr == Type.OBJECT:
                 return Value(Type.BOOL, tl == tr and vl_val is vr_val)
             if tl == Type.FUNCTION and tr == Type.FUNCTION:
-                return Value(Type.BOOL, tl == tr and vl_val is vr_val)
+                return Value(Type.BOOL, tl == tr and vl_val.func_def is vr_val.func_def) # point to same func_def?
             return Value(Type.BOOL, tl == tr and vl_val == vr_val)
         if kind == "!=":
             if vl_val is None and vr_val is None:
@@ -644,7 +644,7 @@ class Interpreter(InterpreterBase):
             if tl == Type.OBJECT and tr == Type.OBJECT:
                 return Value(Type.BOOL, not (tl == tr and vl_val is vr_val))
             if tl == Type.FUNCTION and tr == Type.FUNCTION:
-                return Value(Type.BOOL, not (tl == tr and vl_val is vr_val))
+                return Value(Type.BOOL, not (tl == tr and vl_val.func_def is vr_val.func_def))
             return Value(Type.BOOL, not (tl == tr and vl_val == vr_val))
 
         if tl == Type.STRING and tr == Type.STRING:
