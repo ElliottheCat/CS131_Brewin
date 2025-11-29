@@ -12,6 +12,7 @@ class Type(enum.Enum):
     OBJECT = 4
     VOID = 5
     ERROR = 6
+    FUNCTION = 7 # new func type
 
     @staticmethod
     def get_type(var_name):
@@ -24,10 +25,12 @@ class Type(enum.Enum):
             return Type.STRING
         if last_letter == "b":
             return Type.BOOL
-        if last_letter == "o":
+        if last_letter == "o" or last_letter.isupper(): # check if it's an Object or Object of an Interface
             return Type.OBJECT
         if last_letter == "v":
             return Type.VOID  # only for functions
+        if last_letter == "f":
+            return Type.FUNCTION
         return Type.ERROR
 
 
@@ -54,9 +57,12 @@ class Value:
         elif t == Type.OBJECT:
             return (
                 None  # representing Nil as an object type value with None as its value
+                    # This is equivalent to NOne in Python
             )
         elif t == Type.VOID:
             return None
+        elif t == Type.FUNCTION:
+            return None # nil function
 
         raise Exception("invalid default value for type")
 
@@ -66,13 +72,13 @@ class Environment:
         self.env = []
 
     def enter_block(self):
-        self.env[-1].append({})
+        self.env[-1].append({}) # New dictionary in the last list in env
 
     def exit_block(self):
         self.env[-1].pop()
 
     def enter_func(self):
-        self.env.append([{}])
+        self.env.append([{}]) # New list in env
 
     def exit_func(self):
         self.env.pop()
@@ -146,15 +152,24 @@ class Interpreter(InterpreterBase):
 
     def __get_parameters_type_signature(self, formal_params):
         # a formal arg is an Element of type ARG_NODE
-        param_type_sig = "".join(p.get("name")[-1] for p in formal_params)
-        allowed = "bios"
-        if not all(c in allowed for c in param_type_sig):
-            super().error(ErrorType.TYPE_ERROR, "invalid type in formal parameter")
+        # param_type_sig = "".join(p.get("name")[-1] for p in formal_params)
+        # allowed = "biosf"
+        # if not all(c in allowed for c in param_type_sig):
+        #     super().error(ErrorType.TYPE_ERROR, "invalid type in formal parameter")
+        param_type_sig=""
+        for p in formal_params:
+            last=p.get("name")[-1]
+            if last in "biosf":
+                param_type_sig+=last
+            elif last.isupper(): # still object, just restricted
+                param_type_sig+="o"
+            else:
+                super().error(ErrorType.TYPE_ERROR, "invalid type in formal parameter")
         return param_type_sig
 
     def __get_arguments_type_signature(self, actual_args):
         arg_sig = ""
-        for arg in actual_args:
+        for arg in actual_args: # Value class obj with type and value in them
             if arg.t == Type.INT:
                 arg_sig += "i"
             elif arg.t == Type.STRING:
@@ -163,6 +178,8 @@ class Interpreter(InterpreterBase):
                 arg_sig += "b"
             elif arg.t == Type.OBJECT:
                 arg_sig += "o"
+            elif arg.t == Type.FUNCTION:
+                arg_sig += "f"
             elif arg.t == Type.VOID:
                 super().error(
                     ErrorType.TYPE_ERROR, "void type not allowed as parameter"
@@ -173,7 +190,7 @@ class Interpreter(InterpreterBase):
 
     def __create_function_table(self, ast):
         self.funcs = {}
-        valid_types = {"i", "s", "b", "o"}
+        # valid_types = {"i", "s", "b", "o","f"} # from standard answer but unused for some reason lol
         for func in ast.get("functions"):
             name = func.get("name")
             param_type_sig = self.__get_parameters_type_signature(func.get("args"))
@@ -233,8 +250,8 @@ class Interpreter(InterpreterBase):
         for sub in suffix_name:
             if sub not in lvalue.v:
                 super().error(ErrorType.NAME_ERROR, "object member not found")
-            # every inner item must be an object, ending in an o
-            if sub[-1] != "o":
+            # every inner item must be an object, ending in an o OR upper case letter
+            if not (sub[-1] == "o" or sub[-1].isupper()):
                 super().error(ErrorType.TYPE_ERROR, "member must be an object")
             lvalue = lvalue.v[sub]
             # every inner object must be non-nil
@@ -399,11 +416,19 @@ class Interpreter(InterpreterBase):
         vl_val, vr_val = vl.v, vr.v
 
         if kind == "==":
+            if (vl_val is None) and (vr_val is None):
+                return Value(Type.BOOL,True) # Nil always equal to Nil
             if tl == Type.OBJECT and tr == Type.OBJECT:
+                return Value(Type.BOOL, tl == tr and vl_val is vr_val)
+            if tl == Type.FUNCTION and tr == Type.FUNCTION:
                 return Value(Type.BOOL, tl == tr and vl_val is vr_val)
             return Value(Type.BOOL, tl == tr and vl_val == vr_val)
         if kind == "!=":
+            if vl_val is None and vr_val is None:
+                return Value(Type.BOOL,False)
             if tl == Type.OBJECT and tr == Type.OBJECT:
+                return Value(Type.BOOL, not (tl == tr and vl_val is vr_val))
+            if tl == Type.FUNCTION and tr == Type.FUNCTION:
                 return Value(Type.BOOL, not (tl == tr and vl_val is vr_val))
             return Value(Type.BOOL, not (tl == tr and vl_val == vr_val))
 
@@ -484,7 +509,8 @@ class Interpreter(InterpreterBase):
             super().error(ErrorType.NAME_ERROR, "variable not defined")
         value = self.env.get(dotted_name[0])
         suffix_name = dotted_name[1:]
-        if len(dotted_name) > 1 and dotted_name[0][-1] != "o":
+        # update check to both obj and interface obj
+        if len(dotted_name) > 1 and not (dotted_name[0][-1] == "o" or dotted_name[0][-1].isupper()):
             super().error(ErrorType.TYPE_ERROR, "cannot dereference a non-object")
         for i, sub in enumerate(suffix_name):
             if value.v == None:  # NIL
@@ -492,7 +518,7 @@ class Interpreter(InterpreterBase):
             if sub not in value.v:
                 super().error(ErrorType.NAME_ERROR, "object member not found")
             # every inner item must be an object, ending in an o
-            if i < len(suffix_name) - 1 and sub[-1] != "o":
+            if i < len(suffix_name) - 1 and not (sub[-1] == "o" or sub[-1].isupper()):
                 super().error(ErrorType.TYPE_ERROR, "member must be an object")
             value = value.v[sub]
         return value
