@@ -104,6 +104,7 @@ class Environment:
         top_env = self.env[-1]
         if len(top_env)==1:
             top_env.append([]) # outer block
+
         if varname in top_env[-1]: # only check duplicates in current block, not entire funciton
             return False
         top_env[-1][varname] = value
@@ -127,7 +128,7 @@ class Environment:
 
     def get(self, varname):
         top_env = self.env[-1]
-        for block in top_env:
+        for block in reversed(top_env): #look from inner to outer
             if varname in block:
                 return block[varname]
         return None
@@ -136,7 +137,7 @@ class Environment:
         if not self.exists(varname):
             return False
         top_env = self.env[-1]
-        for block in top_env:
+        for block in reversed(top_env): #set from inner to outer
             if varname in block:
                 block[varname] = value
         return True
@@ -144,6 +145,7 @@ class Environment:
 
 class Function:
     def __init__(self, func_ast):
+        self.name=func_ast.get("name") # make sure return type satisfies interface
         self.return_type = self.__get_return_type(func_ast)
         # the args in the ast is a list of qualified name nodes
         self.formal_args = {a.get("name"): a.get("ref") for a in func_ast.get("args")}
@@ -447,6 +449,9 @@ class Interpreter(InterpreterBase):
             func_val:FunctionValue = func_val_obj.v
             func_def=func_val.func_def # v holds a FunctionValue type, and func_def is inside FunctionValue, pointing to the fefinition of the functions
 
+            # check variable count for Type errro
+            if len(args) != len(func_def.formal_args):
+                super().error(ErrorType.TYPE_ERROR, "wrong num of parameters")
             
             self.env.enter_func() # new functional environemnt
 
@@ -569,8 +574,16 @@ class Interpreter(InterpreterBase):
         if not expr:
             return (Value(funcdef.return_type), True)
         result_val = self.eval_expr(expr)
+        
         if result_val.t != funcdef.return_type:
             super().error(ErrorType.TYPE_ERROR, "return type mismatch")
+
+        # if there is an interface typed obj
+        if funcdef.return_type==Type.OBJECT:
+            last=funcdef.name[-1]
+            if last.isupper() and last in self.interface:
+                self.__check_interface_compat(result_val,last) # error out if doesn't match
+        
         return (result_val, True)
 
     def __run_statements(self, funcdef, statements):
