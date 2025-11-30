@@ -93,6 +93,7 @@ class Environment:
         # from test, we should only care about the first [] which represents the funcitonal level scope for fdef
         if varname in top_env[0]:
             return False
+        
         top_env[0][varname] = value
         return True
 
@@ -477,8 +478,9 @@ class Interpreter(InterpreterBase):
             close_var=func_val.closure_var
             for name in close_var:
                 val = close_var[name]
-                copied=self.__clone_for_passing(val,False) # always copy by value or obj reference
-                self.env.fdef(name, copied) # define the variable inside function using closure 
+                # copied=self.__clone_for_passing(val,False) # always copy by value or obj reference
+                # DON"T COPYT!!!!!! Closure state should persist across calls!!!
+                self.env.fdef(name, val) # define the variable inside function using closure 
             
             formal_names = list(func_def.formal_args.keys()) # get the list of the formal argumetns of funciton from the Funciton obj
 
@@ -529,6 +531,9 @@ class Interpreter(InterpreterBase):
                 formal
             ]  # determine if it's a reference or not
             actual = self.__clone_for_passing(actual, ref_param)
+            last=formal[-1]
+            if last.isupper():
+                self.__check_interface_compat(actual,last)
             self.env.fdef(
                 formal, actual
             )  # no need to check types since we used types for overloading to pick a compatible function already
