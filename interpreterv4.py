@@ -336,13 +336,15 @@ class Interpreter(InterpreterBase):
         if not self.env.exists(dotted_name[0]):
             super().error(ErrorType.NAME_ERROR, "variable not defined")
 
-        if Type.get_type(dotted_name[-1]) != rvalue.t:
+
+        # still allow nil to be assigned to funciton or obj!!!
+        if Type.get_type(dotted_name[-1]) != rvalue.t and not (rvalue.v is None and (Type.get_type(dotted_name[-1])== Type.OBJECT or Type.get_type(dotted_name[-1])==Type.FUNCTION)):
             super().error(ErrorType.TYPE_ERROR, "type mismatch in assignment")
 
         last=dotted_name[-1][-1]
         if last.isupper() and last not in self.interface:
             super().error(ErrorType.TYPE_ERROR, "no interface satisfiable")
-        if rvalue.t==Type.OBJECT and last.isupper() and last in self.interface:
+        if (rvalue.v is not None) and (rvalue.t==Type.OBJECT) and last.isupper() and (last in self.interface):
             self.__check_interface_compat(rvalue,last) # check compatibility first
         
         
@@ -351,6 +353,7 @@ class Interpreter(InterpreterBase):
         if len(dotted_name) == 1:
             
             value = self.env.get(name)
+            
             value.set(
                 rvalue
             )  # update the value pointed to by the variable, not the mapping in the env
@@ -378,9 +381,9 @@ class Interpreter(InterpreterBase):
                 )
 
         if rvalue.t == Type.OBJECT:
-            lvalue.v[dotted_name[-1]] = rvalue
+            lvalue.v[dotted_name[-1]] = rvalue #obj ref
         else:
-            lvalue.v[dotted_name[-1]] = Value(rvalue.t, rvalue.v)
+            lvalue.v[dotted_name[-1]] = Value(rvalue.t, rvalue.v) # byt value
 
     def __handle_input(self, fcall_name, args):
         """Handle inputi and inputs function calls"""
@@ -497,7 +500,7 @@ class Interpreter(InterpreterBase):
             # inject selfo if this is from an obj IF IT"S SET IN THE LAST FRAMMMMEEEMEMEM
             
             if self_val is not None:
-                self.env.fdef_or_set("selfo",self_val) # incase any selfo was in the previous environment
+                self.env.fdef_or_set("selfo",self_val) # incase any selfo defined byt user
 
             res, _ = self.__run_statements(func_def, func_def.statements)
             self.env.exit_func()
@@ -778,6 +781,12 @@ class Interpreter(InterpreterBase):
             field_val=obj_dict[vname]
             if field_val.t != vtype:
                 super().error(ErrorType.TYPE_ERROR, "obj var with wrong type!") # used when we first assign outside values
+            
+            # now cehck interfaced obj and whether each has the field.
+            last= vname[-1]
+            if last.isupper() and last in self.interface:
+                self.__check_interface_compat(field_val,last)
+
 
         # now for funcitons
         for func_name, func_info in required_func.items():
@@ -809,9 +818,6 @@ class Interpreter(InterpreterBase):
                 if obj_para_t!=req_type or obj_para_ref!= req_ref:
                     super().error(ErrorType.TYPE_ERROR, "obj func parameter type or ref type doesnt' match interface")
             
-
-
-
 
 
 
