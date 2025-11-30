@@ -755,7 +755,10 @@ class Interpreter(InterpreterBase):
         for block in cur_frame: # from first (function level) to the most inner block. later variables overrides the previous ones, so it shadows the outer vars for our blocks. 
             # shaowing legality is checked when a variable is defined, we don't need to worry about it here.
             for name,val in block.items(): # iterate using library items() for convinience
-                rtr[name]=copy(val) # shallow copy for Value and obj reference behavior
+                if val.t==Type.BOOL or val.t==Type.INT or val.t==Type.STRING:
+                    rtr[name]=deepcopy(val) # deepcopy for primitives
+                else:
+                    rtr[name]=copy(val)
         
         return rtr
 
@@ -801,22 +804,90 @@ class Interpreter(InterpreterBase):
             # Remeber to use the FunctionValue inside the Value.v!!!!
             obj_func_para_sig=func_val.v.func_def.formal_args #Google: Python dictionaries preserve the initial insertion order of their keys
             # We can thus use the library to cehck the argument types as we enetered them when making the funciton
-            formal_para=[]
+
+            req_para_name=func_info["func_para_names"]
             req_para_types=func_info["func_para_types"]
             req_para_ref=func_info["func_para_is_ref"]
 
             if len(req_para_types)==0 and len(obj_func_para_sig)==0:
                 continue # nothing left to check for this funciton
-            if len(req_para_types)!=len(obj_func_para_sig):
+            if len(req_para_types)!=len(obj_func_para_sig) or len(req_para_ref)!=len(obj_func_para_sig):
                 super().error(ErrorType.TYPE_ERROR, "obj func parameter count doesnt' match interface")
 
             # DON"T FORGET TO USE .items() for FULL ITERATION of (key,value)!!!!IHIUFEKGL<SUFLDFSKUG
-            for (obj_para_name, obj_para_ref), req_type, req_ref in zip(obj_func_para_sig.items(),req_para_types,req_para_ref):
-                last=obj_para_name[-1]
-                # Need to add validation that stricter interface obj are accepted into less strict interface ones, but not vice versa.
+            for (obj_para_name, obj_para_ref), req_type, req_ref,req_name in zip(obj_func_para_sig.items(),req_para_types,req_para_ref,req_para_name):
+                
+
                 obj_para_t=Type.get_type(obj_para_name)
                 if obj_para_t!=req_type or obj_para_ref!= req_ref:
                     super().error(ErrorType.TYPE_ERROR, "obj func parameter type or ref type doesnt' match interface")
+
+                # Need to add validation that stricter interface obj are accepted into less strict interface ones, but not vice versa.
+                para_last=obj_para_name[-1]
+                req_last=req_name[-1]
+                # check if the interface in para_last statisfies teh interface of req_last
+                if req_last.isupper() and not para_last.isupper():
+                    super().error(ErrorType.TYPE_ERROR, "interface mismatch")
+                if req_last.isupper():
+                    self.__check_interface_to_interface_compat(req_last,para_last)
+
+
+    # new helper for the whole interface hceing 
+    def __check_interface_to_interface_compat(self, req_inter, given_inter):
+        if req_inter in self.interface:
+            # get all the ruqiremtn form the asdfclkgudfabslgdfsecrweC
+            # REALLY MY MENTAL STATE THANKS TO THIS PROJEC TIS NOT NO LONGER HERE THATEHASUOIHLSAGLGFED
+            req_list=self.interface[req_inter]
+            req_var=req_list["var_list"]
+            req_func_list=req_list["func_list"]
+
+            given_list=self.interface[given_inter]
+            given_var=given_list["var_list"]
+            given_func_list=given_list["func_list"]
+
+            # chekc variables in interfaeas
+            for vname,vtype in req_var.items():
+                if vname not in given_var:
+                    super().error(ErrorType.TYPE_ERROR, "interface missing var for another interface")
+
+            # function chekcign 
+            for fname,func_info in req_func_list.items:
+                req_para_name=func_info["func_para_names"]
+                req_para_types=func_info["func_para_types"]
+                req_para_ref=func_info["func_para_is_ref"]
+                
+                # really I hope we can just end here can we just not check parameters pleaes plase apela sekeasjfoisgdfehdi
+                if fname not in given_func_list:
+                    super().error(ErrorType.TYPE_ERROR, "interface missing func for another interface")
+
+                given_func_info=given_func_list["fname"]
+                # more parameters thank you zip() you have became my officail new favouritem method outther after item()
+                given_para_name=given_func_info["func_para_names"]
+                given_para_types=given_func_info["func_para_types"]
+                given_para_ref=given_func_info["func_para_is_ref"]
+
+                if len(req_para_types)!=len(given_para_types):
+                    super().error(ErrorType.TYPE_ERROR, "interface func missing parameter for another interface")
+                
+                # chekcin everythign in plase
+                for req_type,req_ref,req_name,given_type,given_ref,given_name in zip(req_para_types,req_para_ref,req_para_name,given_para_types,given_para_ref,given_para_name):
+                    if req_type!=given_type:
+                        super().error(ErrorType.TYPE_ERROR, "interface func parameter type mismatch for another interface")
+                    req_last=req_name[-1]
+                    if req_last.isupper():
+                        given_last=given_name[-1]
+                        if not given_last.isupper():
+                            super().error(ErrorType.TYPE_ERROR, "interface func parameter type mismatch for another interface")
+                        self.__check_interface_to_interface_compat(req_last,given_last)
+                    
+                    if req_ref!=given_ref:
+                        super().error(ErrorType.TYPE_ERROR, "interface func parameter ref mismatch for another interface")
+                
+
+                            
+
+
+
             
 
 
