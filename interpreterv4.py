@@ -103,8 +103,8 @@ class Environment:
         #     return False
 
         top_env = self.env[-1]
-        if len(top_env)==1:
-            top_env.append([]) # outer block
+        # if len(top_env)==1:
+        #     top_env.append([]) # outer block
 
         if varname in top_env[-1]: # only check duplicates in current block, not entire funciton
             return False
@@ -472,7 +472,7 @@ class Interpreter(InterpreterBase):
 
 
             self.env.enter_func() # new functional environemnt
-
+            self.env.enter_block()
             # collect all the closured variables into the new environment so we can access it
             # we should reassign the values if inner parameters exists
             close_var=func_val.closure_var
@@ -505,7 +505,9 @@ class Interpreter(InterpreterBase):
                 self.env.fdef_or_set("selfo",self_val) # incase any selfo defined byt user
 
             res, _ = self.__run_statements(func_def, func_def.statements)
+            self.env.exit_block()
             self.env.exit_func()
+
             return res # end of execution for the fcuntion varibale 
         
         # if the fiunction is not called using funciton variable or field, we use the old behaviors. 
@@ -526,6 +528,7 @@ class Interpreter(InterpreterBase):
 
 
         self.env.enter_func()
+        self.env.enter_block() # just assume we wrap all functional var in a block
         for formal, actual in zip(func_def.formal_args.keys(), actual_args):
             ref_param = func_def.formal_args[
                 formal
@@ -538,6 +541,7 @@ class Interpreter(InterpreterBase):
                 formal, actual
             )  # no need to check types since we used types for overloading to pick a compatible function already
         res, _ = self.__run_statements(func_def, func_def.statements)
+        self.env.exit_block()
         self.env.exit_func()
 
         return res
@@ -831,73 +835,10 @@ class Interpreter(InterpreterBase):
                 para_last=obj_para_name[-1]
                 req_last=req_name[-1]
                 # check if the interface in para_last statisfies teh interface of req_last
-                if req_last.isupper() and not para_last.isupper():
-                    super().error(ErrorType.TYPE_ERROR, "interface mismatch")
                 if req_last.isupper():
-                    self.__check_interface_to_interface_compat(req_last,para_last)
-
-
-    # new helper for the whole interface hceing 
-    def __check_interface_to_interface_compat(self, req_inter, given_inter):
-        if req_inter in self.interface:
-            # get all the ruqiremtn form the asdfclkgudfabslgdfsecrweC
-            # REALLY MY MENTAL STATE THANKS TO THIS PROJEC TIS NOT NO LONGER HERE THATEHASUOIHLSAGLGFED
-            req_list=self.interface[req_inter]
-            req_var=req_list["var_list"]
-            req_func_list=req_list["func_list"]
-
-            given_list=self.interface[given_inter]
-            given_var=given_list["var_list"]
-            given_func_list=given_list["func_list"]
-
-            # chekc variables in interfaeas
-            for vname,vtype in req_var.items():
-                if vname not in given_var:
-                    super().error(ErrorType.TYPE_ERROR, "interface missing var for another interface")
-
-            # function chekcign 
-            for fname,func_info in req_func_list.items:
-                req_para_name=func_info["func_para_names"]
-                req_para_types=func_info["func_para_types"]
-                req_para_ref=func_info["func_para_is_ref"]
+                    if not para_last.isupper() or para_last!=req_last:
+                        super().error(ErrorType.TYPE_ERROR, "interface mismatch")
                 
-                # really I hope we can just end here can we just not check parameters pleaes plase apela sekeasjfoisgdfehdi
-                if fname not in given_func_list:
-                    super().error(ErrorType.TYPE_ERROR, "interface missing func for another interface")
-
-                given_func_info=given_func_list["fname"]
-                # more parameters thank you zip() you have became my officail new favouritem method outther after item()
-                given_para_name=given_func_info["func_para_names"]
-                given_para_types=given_func_info["func_para_types"]
-                given_para_ref=given_func_info["func_para_is_ref"]
-
-                if len(req_para_types)!=len(given_para_types):
-                    super().error(ErrorType.TYPE_ERROR, "interface func missing parameter for another interface")
-                
-                # chekcin everythign in plase
-                for req_type,req_ref,req_name,given_type,given_ref,given_name in zip(req_para_types,req_para_ref,req_para_name,given_para_types,given_para_ref,given_para_name):
-                    if req_type!=given_type:
-                        super().error(ErrorType.TYPE_ERROR, "interface func parameter type mismatch for another interface")
-                    req_last=req_name[-1]
-                    if req_last.isupper():
-                        given_last=given_name[-1]
-                        if not given_last.isupper():
-                            super().error(ErrorType.TYPE_ERROR, "interface func parameter type mismatch for another interface")
-                        self.__check_interface_to_interface_compat(req_last,given_last)
-                    
-                    if req_ref!=given_ref:
-                        super().error(ErrorType.TYPE_ERROR, "interface func parameter ref mismatch for another interface")
-                
-
-                            
-
-
-
-            
-
-
-
-
 
     def eval_expr(self, expr):
         kind = expr.elem_type
