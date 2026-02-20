@@ -1,40 +1,120 @@
-# Project Starter
- 
-This repository provides:
-1. The necessary environment to run your interpreter solution inside of
-2. A local autograder script supplied with 20% of the Gradescope test cases for you to test your program
+# Brewin# Interpreter (Python)
 
-## Notes
+A multi-stage interpreter for a progressively extended programming language, implemented in Python.  
+This project evolved across four major iterations, culminating in support for static typing, objects, interfaces, first-class functions, and closures.
 
-- To do the project, you must have a top-level, versioned interpretervX.py file (where X is the current project number) that exports the Interpreter class. If not, your code will not run on our autograder.
-- Your Gradescope submission should contain `interpretervX.py` and optionally any additional files YOU wrote (not the base files) that it rely on to run.
-- You should maintain a copy of your local git history and commit to it regularly as you work. Although this is not required for submission, we reserve the right to ask you to submit this at any time if we suspect foul play.
-- A few days after each project deadline, we will upload a reference solution to THIS repository. We recommend you do the next part building on your own code, but you are free to build on the reference solution from the previous project if you wish.
-- Use Python>=3.12, or you will very likely run into weird issues!
+The goal was to design and implement a correct execution model on top of a provided parser/AST framework, focusing on runtime semantics, scoping rules, type enforcement, and higher-order behavior.
 
-### For These Files:
+---
+
+## Overview
+
+This interpreter executes a custom language with:
+
+- Lexical scoping
+- Static type enforcement via name suffix conventions
+- Structured control flow
+- User-defined functions and recursion
+- Objects with dynamic fields
+- Interface conformance checks
+- First-class functions
+- Lambda expressions with closure capture
+- Method dispatch with implicit receiver injection
+
+The implementation emphasizes:
+
+- Clear environment modeling
+- Correct stack discipline
+- Deterministic runtime error behavior
+- Precise semantic handling of closures and reference parameters
+
+---
+
+## Language Capabilities
+
+### 1. Core Execution Model
+- Program entry via `main`
+- Expression evaluation (arithmetic, boolean, comparison, logical ops)
+- Structured control flow: `if`, `while`
+- Recursive function calls
+- Return propagation via explicit call frames
+
+### 2. Static Typing via Suffix System
+Type is encoded in identifier suffix:
+- `i` → int
+- `b` → bool
+- `s` → string
+- `o` → object
+- `f` → function
+- `InterfaceName` (capitalized) → interface type
+
+The interpreter enforces:
+- Assignment compatibility
+- Parameter compatibility
+- Return type correctness
+- Interface structural conformance
+
+This required building a runtime type validation layer on top of dynamic Python values.
+
+### 3. Environment & Scope Model
+- Function scope
+- Block scope (`bvar`)
+- Shadowing rules (required in final version)
+- Separate lexical environments captured for closures
+
+Internally implemented via:
+- Stack of activation records
+- Nested environment chains
+- Explicit lookup resolution strategy
+
+### 4. Objects
+- Object construction
+- Dynamic field creation
+- Dotted access and assignment
+- Field-stored functions
+
+Objects are implemented as runtime dictionaries with metadata enforcing typing and interface constraints.
+
+### 5. Pass-by-Reference Parameters
+Supports reference parameters:
+- Alias binding between caller and callee
+- Correct mutation semantics
+- Scope-aware resolution
+
+This required explicit reference wrappers rather than raw Python primitives.
+
+### 6. First-Class Functions
+Functions can:
+- Be stored in variables
+- Be returned from functions
+- Be passed as parameters
+- Be stored inside objects
+
+Function values internally store:
+- Parameter list
+- Return type
+- AST body
+- Captured environment snapshot
+
+### 7. Lambdas & Closures
+Lambda expressions support:
+- Environment capture
+- Value capture for primitives
+- Reference capture for objects
+- Nested closure chains
+
+Correct closure implementation required:
+- Free variable detection
+- Environment freezing at creation time
+- Correct resolution order during invocation
+
+### 8. Method Dispatch & Implicit Receiver
+When invoking a function via object field:
+
+```brewin
+obj.method()
 ```
-ply/lex.py
-ply/yacc.py
-brewlex.py
-brewparse.py
-element.py
-intbase.py
-```
 
-- You do NOT need to understand these files to do the project (other than knowing how to invoke certain methods defined in them, which is outlined in the spec)
-- You should NOT modify these files under any circumstance
-
-## Local Autograder
-
-To test your solution against the local autograder (again, this is 20% of the total Gradescope test cases), simply run:
-```
-python tester.py <project number>
-```
-
-This will run all the `tests` and `fails` tests in directory `v<project number>` against your interpreter.
-
-You are free to write additional tests and add them to the corresponding directory, the local autograder will automatically test your code against any additional tests you write.
 
 ## Licensing and Attribution
 
@@ -42,10 +122,10 @@ This is an unlicensed repository; even though the source code is public, it is *
 
 This code was primarily written by [Carey Nachenberg](http://careynachenberg.weebly.com/) with support from his TAs.
 
+As a studend in CS 131, I've implemented the interpreter files in this repository. 
+
 
 
 ## Interpreter Implementation:
 
-The implementation of the interpreter is over the provided baseclass. I will develop this incrementally over different projects. For now the interpreter does:
-
-- parse the program using provided parser
+The implementation of the interpreter is over the provided baseclass. I developed this incrementally over different projects. 

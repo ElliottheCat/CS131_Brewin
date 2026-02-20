@@ -472,7 +472,7 @@ class Interpreter(InterpreterBase):
 
 
             self.env.enter_func() # new functional environemnt
-            self.env.enter_block()
+            # self.env.enter_block()
             # collect all the closured variables into the new environment so we can access it
             # we should reassign the values if inner parameters exists
             close_var=func_val.closure_var
@@ -505,7 +505,7 @@ class Interpreter(InterpreterBase):
                 self.env.fdef_or_set("selfo",self_val) # incase any selfo defined byt user
 
             res, _ = self.__run_statements(func_def, func_def.statements)
-            self.env.exit_block()
+            # self.env.exit_block()
             self.env.exit_func()
 
             return res # end of execution for the fcuntion varibale 
@@ -528,7 +528,7 @@ class Interpreter(InterpreterBase):
 
 
         self.env.enter_func()
-        self.env.enter_block() # just assume we wrap all functional var in a block
+        #self.env.enter_block() # just assume we wrap all functional var in a block
         for formal, actual in zip(func_def.formal_args.keys(), actual_args):
             ref_param = func_def.formal_args[
                 formal
@@ -541,7 +541,7 @@ class Interpreter(InterpreterBase):
                 formal, actual
             )  # no need to check types since we used types for overloading to pick a compatible function already
         res, _ = self.__run_statements(func_def, func_def.statements)
-        self.env.exit_block()
+        # self.env.exit_block()
         self.env.exit_func()
 
         return res
