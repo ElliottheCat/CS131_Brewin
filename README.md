@@ -115,6 +115,54 @@ When invoking a function via object field:
 obj.method()
 ```
 
+---
+
+## How to Run
+
+### Prerequisites
+- Python 3.x
+- PLY (Python Lex-Yacc) library for parsing
+
+### Running a Brewin Program
+
+To execute a Brewin source file, use the `harness.py` script:
+
+```bash
+python harness.py <path_to_program.br>
+```
+
+### Running Tests
+
+The project includes test suites organized by version (v1, v2, v3, v4). Each version directory contains:
+- `tests/` - Programs that should execute successfully
+- `fails/` - Programs that should produce runtime errors
+
+To run the test harness:
+
+```bash
+python tester.py <version_index: 1~4>
+```
+
+This will execute all test cases and report results.
+
+### Example
+
+To run a specific test program:
+
+```bash
+python harness.py v1/tests/test_add1.br
+```
+
+### Project Structure
+
+- **interpreterv1.py to interpreterv4.py** - Four versions of the interpreter with increasing feature support
+- **brewparse.py** - Parser implementation using PLY
+- **brewlex.py** - Lexer implementation using PLY
+- **harness.py** - Main entry point for running programs
+- **intbase.py** - Base classes and type definitions
+- **v1/ through v4/** - Test files organized by language feature set
+
+---
 
 ## Licensing and Attribution
 
